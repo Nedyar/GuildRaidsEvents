@@ -371,6 +371,23 @@ local function Touch(record, kind)
     Events.Invalidate()
 end
 
+-- Whether a list of the player's record (by event, or by GUID inside one
+-- event) takes key: it has it already, or has room for one more. A record
+-- over its LIMITS could not be read again (Pack.lua).
+local function HasRoom(list, key, max)
+    if list == nil or list[key] ~= nil then
+        return true
+    end
+    local count = 0
+    for _ in pairs(list) do
+        count = count + 1
+        if count >= max then
+            return false
+        end
+    end
+    return true
+end
+
 local DIGITS = "0123456789abcdefghijklmnopqrstuvwxyz"
 
 function Events.ToBase36(number)
@@ -431,6 +448,9 @@ end
 -- The organizer of a new event is signed up and confirmed in it, as the
 -- game's calendar does with its creator; they may answer otherwise later.
 local function SignUpOrganizer(record, key, at)
+    if not HasRoom(record.su, key, LIMITS.signUps) or not HasRoom(record.ms, key, LIMITS.statusEvents) then
+        return
+    end
     record.su = record.su or {}
     record.su[key] = { st = Events.SIGNED, ro = Events.LastRole(), at = at }
     record.ms = record.ms or {}
@@ -444,6 +464,9 @@ end
 -- A weekly event has it from the start, and the one after once it starts:
 -- so there are always two to come.
 local function MakeNext(record, base, at)
+    if #record.ev >= LIMITS.events then
+        return
+    end
     local nextEvent = {}
     for _, field in ipairs(FIELDS) do
         nextEvent[field] = base[field]
@@ -469,7 +492,7 @@ function Events.Create(fields)
     end
     record.ev = record.ev or {}
     local event = Fields(fields, ns.Now())
-    if not event then
+    if not event or #record.ev >= LIMITS.events then
         return nil, "invalid"
     end
     event.id, event.ci = NewID(record), 0
@@ -523,14 +546,10 @@ function Events.Change(key, fields, cancelled)
             MakeNext(record, base, ns.Now())
         end
     else
-        record.pe = record.pe or {}
-        local count = 0
-        for _ in pairs(record.pe) do
-            count = count + 1
-        end
-        if not record.pe[key] and count >= LIMITS.patches then
+        if not HasRoom(record.pe, key, LIMITS.patches) then
             return false
         end
+        record.pe = record.pe or {}
         record.pe[key] = changed
     end
     Touch(record, "events")
@@ -580,11 +599,7 @@ function Events.Answer(key, st, role, note)
     record.su = record.su or {}
     local old = record.su[key]
     if st then
-        local count = 0
-        for _ in pairs(record.su) do
-            count = count + 1
-        end
-        if not old and count >= LIMITS.signUps then
+        if not HasRoom(record.su, key, LIMITS.signUps) then
             return false
         end
         note = note and strtrim(note) or nil
@@ -604,6 +619,9 @@ function Events.SetStatus(key, guid, st)
     local event = Events.Get(key)
     local record = Own()
     if not event or not record or not ns.Rights.MayIManage(event) then
+        return false
+    end
+    if not HasRoom(record.ms, key, LIMITS.statusEvents) or not HasRoom(record.ms and record.ms[key], guid, LIMITS.perEvent) then
         return false
     end
     record.ms = record.ms or {}
@@ -629,6 +647,10 @@ function Events.SetExternal(key, guid, st, role, note)
     end
     if not ns.Roster.members[guid] then
         return false, "notMember"
+    end
+    if st and (not HasRoom(record.xs, key, LIMITS.statusEvents)
+            or not HasRoom(record.xs and record.xs[key], guid, LIMITS.perEvent)) then
+        return false, "full"
     end
     record.xs = record.xs or {}
     record.xs[key] = record.xs[key] or {}

@@ -130,6 +130,19 @@ local function CleanStatus(status, now)
     return { st = status.st, at = status.at }
 end
 
+-- The string keys of a table, sorted: what goes over a limit is the same
+-- on every client.
+local function SortedKeys(map)
+    local keys = {}
+    for key in pairs(map) do
+        if type(key) == "string" then
+            keys[#keys + 1] = key
+        end
+    end
+    table.sort(keys)
+    return keys
+end
+
 -- { [key] = { [GUID] = item } }, each item checked by clean; at most
 -- LIMITS.statusEvents events and LIMITS.perEvent items in one.
 local function CleanNested(map, clean, now)
@@ -137,10 +150,12 @@ local function CleanNested(map, clean, now)
         return nil
     end
     local result, events = {}, 0
-    for key, inner in pairs(map) do
+    for _, key in ipairs(SortedKeys(map)) do
+        local inner = map[key]
         if Data.IsKey(key) and type(inner) == "table" then
             local items, count = {}, 0
-            for guid, item in pairs(inner) do
+            for _, guid in ipairs(SortedKeys(inner)) do
+                local item = inner[guid]
                 local checked = Lib.IsGUID(guid) and clean(item, now)
                 if checked and count < LIMITS.perEvent then
                     items[guid] = checked
@@ -193,8 +208,8 @@ function Data.CleanRecord(record, now)
     end
     if type(record.pe) == "table" then
         local patches, count = {}, 0
-        for key, patch in pairs(record.pe) do
-            local fields = Data.IsKey(key) and CleanFields(patch, now)
+        for _, key in ipairs(SortedKeys(record.pe)) do
+            local fields = Data.IsKey(key) and CleanFields(record.pe[key], now)
             if fields and count < LIMITS.patches then
                 patches[key] = fields
                 count = count + 1
@@ -204,8 +219,8 @@ function Data.CleanRecord(record, now)
     end
     if type(record.su) == "table" then
         local answers, count = {}, 0
-        for key, answer in pairs(record.su) do
-            local checked = Data.IsKey(key) and CleanAnswer(answer, now)
+        for _, key in ipairs(SortedKeys(record.su)) do
+            local checked = Data.IsKey(key) and CleanAnswer(record.su[key], now)
             if checked and count < LIMITS.signUps then
                 answers[key] = checked
                 count = count + 1

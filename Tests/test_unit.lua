@@ -262,6 +262,34 @@ for i = 1, 25 do
     allMade = allMade and Events.Create({ ty = 4, ti = "Event " .. i, tm = Events.Now() + 86400 + i, ml = 0 }) ~= nil
 end
 H.check(allMade and #guild.members[solo.guid].ev == beforeMany + 25, "no limit of the addon's own on creating events")
+-- An organizer is signed up and confirmed in each event of theirs: more
+-- events than 0.1.0's first limits (40 with statuses, 60 answered) made the
+-- record unreadable, so it was lost at the next login.
+for i = 26, 75 do
+    allMade = allMade and Events.Create({ ty = 4, ti = "Event " .. i, tm = Events.Now() + 86400 + i, ml = 0 }) ~= nil
+end
+local function CountOf(map)
+    local count = 0
+    for _ in pairs(map or {}) do
+        count = count + 1
+    end
+    return count
+end
+local ownRecord = guild.members[solo.guid]
+H.check(allMade and CountOf(ownRecord.ms) > 60 and CountOf(ownRecord.su) > 60,
+    "many events, each with its organizer signed up and confirmed")
+local readOK, readGUID, readBack = pcall(Pack.ReadRecord, Pack.Reader(Pack.RecordString(solo.guid, ownRecord)))
+H.check(readOK and readGUID == solo.guid and CountOf(readBack.ms) == CountOf(ownRecord.ms)
+    and CountOf(readBack.su) == CountOf(ownRecord.su), "the organizer's record still reads, every answer and status in it")
+local loaded = readOK and Data.CleanRecord(readBack)
+H.check(loaded and #loaded.ev == #ownRecord.ev and CountOf(loaded.ms) == CountOf(ownRecord.ms),
+    "and loads again whole, as at the next login")
+-- Nothing is ever written over the limits a record is read with.
+local perEvent = Pack.LIMITS.perEvent
+Pack.LIMITS.perEvent = CountOf(ownRecord.ms[created])
+H.check(not Events.SetStatus(created, "Player-1-000000AB", Events.STANDBY), "a status over the limit of one event is refused")
+H.check(Events.SetStatus(created, member, Events.STANDBY), "one already given still changes")
+Pack.LIMITS.perEvent = perEvent
 H.check(not Events.SetExternal(created, member, Events.SIGNED), "the guild master is no bridge character: nothing brought in")
 
 H.section("Events: upkeep")

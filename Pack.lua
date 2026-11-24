@@ -5,7 +5,12 @@ local _, ns = ...
 
 local Pack = ns.Pack
 
--- The most a record may hold. Anything bigger is refused when read.
+-- The most a record may hold. Anything bigger is refused when read, so the
+-- addon never writes more (Events.lua checks each list before adding to
+-- it): a record over one of these could not be read again, by the guild
+-- or by its own character at the next login.
+local EVENTS = 1000  -- a guard against broken data, never reached: creating has no limit of the
+                     -- addon's (the game's calendar has its own), and each list below names events
 Pack.LIMITS = {
     text = 64,       -- names
     title = 128,     -- an event's title: 31 letters in the game's calendar, up to 4 bytes each
@@ -13,12 +18,12 @@ Pack.LIMITS = {
     key = 96,        -- an event's key: the organizer's GUID, "/", its ID
     description = 1024,  -- 255 letters in the game's calendar
     note = 60,       -- a sign-up's note
-    events = 1000,   -- events a record may hold when read: a guard against broken data, never reached
-                     -- (creating has no limit of the addon's; the game's calendar has its own)
-    patches = 40,    -- events one officer changed
-    signUps = 60,    -- events one member answered
-    statusEvents = 40,  -- events one member gave statuses in
-    perEvent = 80,   -- statuses or outside sign-ups in one event
+    events = EVENTS,       -- events a record holds
+    patches = EVENTS,      -- events one officer changed
+    signUps = EVENTS,      -- events one member answered (an organizer answers each of theirs)
+    statusEvents = EVENTS, -- events one member gave statuses in (an organizer, each of theirs),
+                           -- or brought outside sign-ups to
+    perEvent = 1000, -- statuses or outside sign-ups in one event: a guild's members at most
     slots = 40,      -- places of one role
     level = 255,
     bridges = 20,    -- characters the guild master lets add outside sign-ups

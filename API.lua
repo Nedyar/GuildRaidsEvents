@@ -13,7 +13,8 @@
 --       -- status "signedUp", "tentative", "declined", or nil to take it back;
 --       -- role "tank", "healer" or "damage". Returns true, or false and why:
 --       -- "notReady", "notBridge", "noEvent", "locked" (the event takes no
---       -- answers), "notMember", "badStatus", "badRole".
+--       -- answers), "notMember", "badStatus", "badRole", "full" (this
+--       -- character holds as many as its record can).
 --   GuildRaidsEvents.OnChange(callback)         -- called (with no arguments) when the events change
 --
 -- An event: { key, title, type ("raid", "dungeon", "pvp", "meeting",
