@@ -33,7 +33,9 @@ local REFUSED = "The game's calendar refused the change. Click again to retry."
 -- its item is taken back (Undo): what it changed is put back.
 
 local items = {}
-local last       -- the item of the last call, which a refusal of the game takes back
+-- The item of the call going on (Send.Try): the game refuses a call while
+-- it is made, so a refusal then takes that item back, and no other.
+local current
 local blocked = false  -- the game refused one of our calls (set during the call)
 
 local function Slot(kind, key)
@@ -45,6 +47,13 @@ local function Expired(item)
 end
 
 function Send.Put(kind, key, item)
+    -- Those no longer counting go (an officer's changes, which nothing
+    -- looks at again).
+    for slot, other in pairs(items) do
+        if Expired(other) then
+            items[slot] = nil
+        end
+    end
     item = item or {}
     item.kind, item.key, item.at = kind, key, GetTime()
     items[Slot(kind, key)] = item
@@ -73,11 +82,7 @@ end
 
 -- The calendar shows it.
 function Send.Landed(kind, key)
-    local slot = Slot(kind, key)
-    if last == items[slot] then
-        last = nil
-    end
-    items[slot] = nil
+    items[Slot(kind, key)] = nil
 end
 
 -- Whether a new or restored event waits for the calendar's answer.
@@ -97,9 +102,6 @@ local function Undo(item, why)
         return
     end
     items[slot] = nil
-    if last == item then
-        last = nil
-    end
     if item.kind == "update" and item.mine then
         Read.State("known")[item.key] = item.previous
     elseif item.kind == "create" then
@@ -143,8 +145,9 @@ end
 -- whether the game took it. If not, the item is taken back.
 function Send.Try(what, item, fn)
     blocked = false
-    last = item
+    current = item
     local ok, err = pcall(fn)
+    current = nil
     if ok and not blocked then
         Calendar.lastError = nil
         Note(what, "sent")
@@ -166,13 +169,15 @@ function Send.Blocked()
 end
 
 -- The game refused one of our calls (ADDON_ACTION_BLOCKED): what it was
--- part of is taken back, and the other changes sent wait again.
+-- part of, when it was one of Send.Try's, is taken back, and the changes
+-- and deletions sent wait again. A new or restored event sent before is
+-- left alone: the call refused was another.
 function Send.OnBlocked(action)
     blocked = true
     Note(tostring(action), "blocked by the game")
     Calendar.lastError = L[REFUSED]
-    if last then
-        Undo(last, Calendar.lastError)
+    if current then
+        Undo(current, Calendar.lastError)
     end
     UndoAll({ update = true, delete = true }, Calendar.lastError)
     ns.Fire("CalendarPending")
@@ -237,7 +242,7 @@ function Calendar.CreateFirst(fields, done, failed)
     end) then
         return false
     end
-    last = Send.Put("new", nil, { fields = fields, ti = fields.ti, tm = fields.tm - fields.tm % 60, done = done,
+    Send.Put("new", nil, { fields = fields, ti = fields.ti, tm = fields.tm - fields.tm % 60, done = done,
         failed = failed })
     return true
 end
@@ -309,6 +314,10 @@ function Calendar.Cancel(key)
     if entry then
         Organizer.ForgetTried(entry.id)
         deleted = Organizer.Delete(key, entry, true)
+        if deleted then
+            -- Deleted in a click: the next deletions try with no click again.
+            Organizer.needsClick = false
+        end
     end
     Events.Cancel(key)
     return deleted
@@ -337,7 +346,7 @@ function Calendar.Restore(key)
     end) then
         return false
     end
-    last = Send.Put("restore", key, { ti = event.ti, tm = event.tm })
+    Send.Put("restore", key, { ti = event.ti, tm = event.tm })
     ns.Fire("CalendarPending")
     return true
 end

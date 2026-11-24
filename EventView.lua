@@ -328,12 +328,13 @@ function EventView.Create(parent)
         end
     end)
     view:SetScript("OnHyperlinkLeave", GameTooltip_Hide)
-    view:SetScript("OnHyperlinkClick", UI.Clicked(function(self, link)
+    local menu = UI.Clicked(StatusMenu)
+    view:SetScript("OnHyperlinkClick", function(self, link)
         local signUp = LinkedSignUp(link)
         if signUp then
-            StatusMenu(self, signUp)
+            menu(self, signUp)
         end
-    end))
+    end)
     CreateControls()
     return view
 end

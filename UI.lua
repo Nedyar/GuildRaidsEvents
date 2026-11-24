@@ -272,8 +272,9 @@ end
 -- takes a change only first thing in a click of the player, so the click
 -- first lets a change of the player's events reach it (Calendar.OnClick),
 -- then runs handler. A handler that calls the calendar itself (restricted:
--- Create, Save, Cancel event, Create in calendar) is not wrapped: it calls
--- the calendar first, and Calendar.OnClick itself when it does not.
+-- Create, Save, Cancel event, Restore event, Create in calendar) is not
+-- wrapped: it calls the calendar first (the form's Save also calls
+-- Calendar.OnClick when it sends nothing).
 function UI.Clicked(handler)
     return function(...)
         ns.Calendar.OnClick()

@@ -301,7 +301,8 @@ local function ToDelete()
     end
 end
 
--- Deletes the open event: whether it was sent.
+-- Deletes the open event: whether it was sent, and whether the game
+-- refused the call (it wants a click for it).
 local function RemoveOpen(key, entry, main)
     deleteTried[entry.id] = GetTime()
     local canRemove = ns.Try(C_Calendar.ContextMenuEventCanRemove, entry.offset, entry.day, entry.index)
@@ -310,17 +311,18 @@ local function RemoveOpen(key, entry, main)
             Calendar.lastError = L["The game's calendar does not let this event be deleted now. Try again after /reload."]
         end
         Note("delete", "not sent: the game says it cannot be deleted now")
-        return false
+        return false, false
     end
     local item
     if main then
         item = Send.Put("delete", key)
         Read.State("gone")[key] = true
     end
-    return Send.Try("delete", item, function()
+    local sent = Send.Try("delete", item, function()
         C_Calendar.ContextMenuSelectEvent(entry.offset, entry.day, entry.index)
         C_Calendar.ContextMenuEventRemove()
     end)
+    return sent, not sent and Send.Blocked()
 end
 
 -- Deletes one calendar event (no click needed): key, the event it is or a
@@ -332,7 +334,7 @@ function Organizer.Delete(key, entry, main)
     if last and GetTime() - last < DELETE_RETRY then
         return false
     elseif Read.IsOpen(entry) then
-        return RemoveOpen(key, entry, main)
+        return (RemoveOpen(key, entry, main))
     elseif Read.busy then
         return false
     end
@@ -340,7 +342,8 @@ function Organizer.Delete(key, entry, main)
     Read.busy = true
     Read.openKey = nil
     Read.Open(entry, function(ok)
-        if ok and not RemoveOpen(key, entry, main) and Send.Blocked() then
+        if ok and select(2, RemoveOpen(key, entry, main)) then
+            -- Refused with no click: the next deletions wait for one.
             Organizer.needsClick = true
         end
         Read.WaitDone(function()
@@ -359,10 +362,15 @@ end
 -- A step of the look at the calendar (Tick): deletes what is to delete,
 -- unless the game wants a click for it. Whether a step goes on.
 function Organizer.DeleteNoClick()
+    local key, entry, main = ToDelete()
+    if Organizer.needsClick and key == nil then
+        -- Nothing left to delete (gone some other way): the next one is
+        -- tried with no click again.
+        Organizer.needsClick = false
+    end
     if Organizer.needsClick then
         return false
     end
-    local key, entry, main = ToDelete()
     return key ~= nil and (Organizer.Delete(key, entry, main) or Read.busy)
 end
 

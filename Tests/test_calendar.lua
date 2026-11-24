@@ -680,3 +680,51 @@ H.check(told >= 1 and ns.Calendar.Pending()[1] ~= nil, "a change waiting for a c
 ClickSomewhere(organizer)
 world:RunFor(10)
 Errors("the window told")
+
+H.section("Calendar: the game refusing another call leaves a new or restored event alone")
+kept = ns.Events.Get(adopted.key)
+ns.EventForm.Open(kept.key)
+world:RunFor(5)
+ns.EventForm.Frame():Hide()
+ns.Calendar.Cancel(kept.key)
+world:RunFor(30)
+H.check(ns.Events.Get(kept.key).x and world.calendar.events[kept.ci].deleted, "cancelled, its calendar event deleted")
+organizer.inClick = true
+H.check(ns.Calendar.Restore(kept.key), "restoring it")
+organizer.inClick = false
+world:FireEvent(organizer, "ADDON_ACTION_BLOCKED", "GuildRaidsEvents", "EventSetInviteStatus()")
+world:RunFor(60)
+local back = ns.Events.Get(kept.key)
+H.check(not back.x and back.ci ~= 0 and not world.calendar.events[back.ci].deleted,
+    "another call refused meanwhile: it is restored all the same, linked, and its calendar event stays")
+ns.EventForm.Open(nil)
+form.TitleBox:SetText("Onyxia (resist gear)")
+form.Limit:SetChecked(true)
+form.Tanks:SetText("1")
+H.Click(form.Save)
+world:FireEvent(organizer, "ADDON_ACTION_BLOCKED", "GuildRaidsEvents", "OpenEvent()")
+world:RunFor(30)
+local onyxia
+for _, event in ipairs(ns.Events.List("upcoming")) do
+    if event.ti == "Onyxia (resist gear)" then
+        onyxia = event
+    end
+end
+H.check(onyxia ~= nil and onyxia.sl ~= nil and onyxia.sl.t == 1 and onyxia.ci ~= 0 and not form:IsShown(),
+    "a new event too: it comes in whole from the form, which closes")
+world.errors = {}
+
+H.section("Calendar: a deletion that wanted a click, gone some other way")
+kept = ns.Events.Get(adopted.key)
+world.restrictRemove = true
+local copyID = world:WindowCreate(organizer, { title = kept.ti, at = kept.tm, type = kept.ty })
+world:RunFor(30)
+H.check(ns.CalendarOrganizer.needsClick and CopiesOf(kept) == 1, "the game refuses deleting a copy with no click")
+world:WindowDelete(copyID)
+world.restrictRemove = nil
+world:RunFor(20)
+H.check(not ns.CalendarOrganizer.needsClick, "deleted in the game's window: nothing waits for a click any more")
+world:WindowCreate(organizer, { title = kept.ti, at = kept.tm, type = kept.ty })
+world:RunFor(30)
+H.eq(CopiesOf(kept), 0, "the next copy goes with no click")
+world.errors = {}

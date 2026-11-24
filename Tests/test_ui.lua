@@ -568,6 +568,19 @@ H.eq(member.ns.Events.Get(scholo.key), nil, "for everyone")
 ns.EventView.Close()
 Errors("cancelled events")
 
+H.section("UI: an event that comes to its end, the window open")
+H.Click(Tab(member))
+local ending = ns.Events.Create({ ty = 4, ti = "Ending soon", tm = ns.Events.Now() - ns.Events.DURATION + 150, ml = 0 })
+world:RunFor(30)
+member.ns.EventView.Open(ending)
+H.check(view:IsShown() and view.SignUp:IsEnabled(), "a member can sign up while it is still on")
+-- Up to one look at the calendar (10 s) after it is over.
+world:RunFor(member.ns.Events.Get(ending).tm + ns.Events.DURATION - member.ns.Events.Now() + 11)
+H.check(not view.SignUp:IsEnabled() and view.SignUp.reason == "This event is over.",
+    "once it is over its buttons say so, though nothing else changed")
+member.ns.EventView.Close()
+Errors("an event that ends")
+
 H.section("UI: closing")
 communities:SetDisplayMode("ROSTER")
 H.check(not page:IsShown() and not tab:GetChecked(), "one of Blizzard's tabs closes the panel")

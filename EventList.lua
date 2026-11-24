@@ -106,11 +106,14 @@ local function CreateRow(row)
     highlight:SetAllPoints()
     highlight:SetBlendMode("ADD")
     row:EnableMouse(true)
-    row:SetScript("OnMouseUp", UI.Clicked(function(self, button)
+    local open = UI.Clicked(function(self)
+        ns.EventView.Open(self.event.key)
+    end)
+    row:SetScript("OnMouseUp", function(self, button)
         if button == "LeftButton" and self.event then
-            ns.EventView.Open(self.event.key)
+            open(self)
         end
-    end))
+    end)
 end
 
 local function InitRow(row, element)

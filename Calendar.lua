@@ -72,19 +72,24 @@ function Calendar.Note(what, result)
     ns.Debug("calendar: %s: %s", what, result)
 end
 
--- What the addon's window shows of the calendar: whether a new event can
--- be sent, what waits for its button, what is hidden from the player, the
--- last error. The window is told (CalendarPending) when it changes.
+-- What the addon's window shows of the calendar, and what changes there
+-- with time: whether a new event can be sent, what waits for its button,
+-- what is hidden from the player, the last error; which events are to come
+-- or of the last week, and the player's level (who may sign up). The window
+-- is told (CalendarPending) when it changes.
 local shownSignature
 
 local function WindowSignature()
+    local now = Events.Now()
     local parts = {
         "s" .. tostring(Read.scanned), "c" .. tostring(ns.Rights.MayCreate()), "p" .. tostring(Read.ActionPending()),
         "l" .. tostring(Calendar.AtLimit()), "n" .. tostring(Calendar.Creating()), "e" .. (Calendar.lastError or ""),
+        "v" .. tostring(UnitLevel("player")),
     }
     for key, event in pairs(Events.All()) do
-        parts[#parts + 1] = ("k%s|%s|%s|%s"):format(key, tostring(Calendar.Unsent(event)),
-            tostring(Calendar.HiddenFromMe(event)), tostring(Calendar.Restoring(key)))
+        parts[#parts + 1] = ("k%s|%s|%s|%s|%s|%s"):format(key, tostring(Calendar.Unsent(event)),
+            tostring(Calendar.HiddenFromMe(event)), tostring(Calendar.Restoring(key)),
+            tostring(Events.IsUpcoming(event, now)), tostring(event.tm + Events.KEEP > now))
     end
     table.sort(parts)
     return table.concat(parts, ",")
@@ -160,6 +165,7 @@ function Calendar.TickSoon()
 end
 
 function Calendar.Init()
+    ns.Data.OwnState().pushed = nil  -- what 0.1.0's first builds kept instead of known
     local frame = CreateFrame("Frame")
     ns.RegisterEvents(frame, "CALENDAR_UPDATE_EVENT_LIST", "CALENDAR_NEW_EVENT", "CALENDAR_UPDATE_GUILD_EVENTS",
         "CALENDAR_UPDATE_INVITE_LIST", "CALENDAR_UPDATE_EVENT", "CALENDAR_UPDATE_ERROR",
