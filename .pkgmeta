@@ -4,6 +4,9 @@ package-as: GuildRaidsEvents
 
 ignore:
     - Tests
+    # The author's in-game test (/gevents probe), left out of the TOC too
+    # (#@do-not-package@).
+    - Probe.lua
 
 manual-changelog:
     filename: CHANGELOG.md

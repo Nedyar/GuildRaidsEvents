@@ -454,6 +454,9 @@ H.check(toc:find("## SavedVariables: GuildRaidsEventsDB", 1, true) ~= nil, "the 
 local pkgmeta = Read(".pkgmeta")
 H.check(pkgmeta ~= nil and pkgmeta:find("package%-as: GuildRaidsEvents") ~= nil, ".pkgmeta packages the folder as GuildRaidsEvents")
 H.check(pkgmeta ~= nil and pkgmeta:find("\n    %- Tests\n") ~= nil, ".pkgmeta leaves the tests out of the package")
+H.check(pkgmeta ~= nil and pkgmeta:find("\n    %- Probe%.lua\n") ~= nil
+    and toc:find("#@do-not-package@\nProbe.lua\n#@end-do-not-package@", 1, true) ~= nil,
+    "the author's probe stays out of the package, file and TOC line")
 H.check(pkgmeta ~= nil and pkgmeta:find("required%-dependencies:\n    %- lib%-guild%-sync\n") ~= nil,
     ".pkgmeta makes LibGuildSync a required relation on CurseForge")
 for _, locale in ipairs({ "deDE", "esES", "esMX", "frFR", "itIT", "koKR", "ptBR", "ruRU", "zhCN", "zhTW" }) do

@@ -322,9 +322,8 @@ end
 -- The tab ---------------------------------------------------------------------------
 
 -- The notification mark (UI.NewMark): while upcoming events wait for the
--- player (not seen, not answered) or changes of their events wait for
--- their click (UI.Waiting). On our tab, and on the micro menu's button that
--- opens the guild window.
+-- player, not seen nor answered (UI.Waiting). On our tab, and on the micro
+-- menu's button that opens the guild window.
 function UpdateBadge()
     local shown = UI.Waiting() > 0
     if tab then

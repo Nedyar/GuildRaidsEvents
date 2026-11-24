@@ -124,7 +124,8 @@ SlashCmdList.GUILDRAIDSEVENTS = function(message)
         ns.Sync.SendHello(true)
     elseif lower == "options" then
         ns.Options.Open()
-    elseif lower == "probe" then
+    elseif lower == "probe" and ns.Probe then
+        -- The author's in-game test, left out of the released files.
         ns.Probe.Command(rest)
     elseif lower == "debug" then
         ns.debugEnabled = not ns.debugEnabled

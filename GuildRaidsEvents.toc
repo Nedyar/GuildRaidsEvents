@@ -49,4 +49,6 @@ EventView.lua
 EventForm.lua
 GuildTab.lua
 Options.lua
+#@do-not-package@
 Probe.lua
+#@end-do-not-package@

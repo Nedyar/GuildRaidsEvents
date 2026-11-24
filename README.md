@@ -152,7 +152,9 @@ lua5.1 Tests\run.lua . Tests
 player does in the calendar's own window (`world:WindowEdit` and the like).
 `/gevents probe` is the in-game test that found out how it behaves: it
 creates a test event, signs up to it with another character, gives statuses
-and deletes it, and says what worked.
+and deletes it, and says what worked. `Probe.lua` stays in the repository
+but not in the released files (`.pkgmeta` and `#@do-not-package@` in the
+TOC).
 
 ## Releasing
 
@@ -167,7 +169,8 @@ CurseForge packages every tagged commit pushed here.
    `git push origin v<version>`. A tag containing `beta` or `alpha` makes a
    beta or alpha file instead of a release.
 3. CurseForge builds the zip as `.pkgmeta` says: the `GuildRaidsEvents`
-   folder without the tests, with `CHANGELOG.md` as the file's changelog.
+   folder without the tests and the probe, with `CHANGELOG.md` as the
+   file's changelog.
 
 ## License
 

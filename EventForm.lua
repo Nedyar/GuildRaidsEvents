@@ -4,9 +4,11 @@
 -- minimum level, whether it repeats every week and whether it confirms by
 -- itself. The place is typed to search the game's list, or picked from it
 -- under its box; the day is picked in a month's calendar under its button,
--- the time typed in two boxes, hours and minutes. Creating it puts it in the game's calendar with the same click
--- (Calendar.lua: the game allows it only inside a click); a change goes
--- there with the organizer's next click in the addon's window.
+-- the time from two lists, hours and minutes (and AM or PM, on a 12-hour
+-- clock). Creating or saving it puts it in the game's calendar with the
+-- same click (Calendar.lua: the game allows it only inside a click); a
+-- change the game does not take then goes with the organizer's next click
+-- in the addon's window.
 local _, ns = ...
 local L = ns.L
 
@@ -27,12 +29,12 @@ local form
 local UpdatePlace
 local editing      -- the key of the event changed, or nil for a new one
 local chosen = { hour = DEFAULT_HOUR, minute = 0 }  -- { ty, ii (its place), day (days from today), hour, minute }
+local waiting      -- a token while a new event of the form's waits for the calendar's answer
 
 -- The form's grid: x from its left edge, y from its top. Labels sit over
 -- what they name; an edit box's frame starts a little right of where its
 -- border shows, so it is moved by BOX_INSET to line up with the rest.
 local LEFT, RIGHT_COLUMN = 24, 296
-local waiting  -- a token while a new event of the form's waits for the calendar's answer
 local BOX_INSET = 6
 
 local function Place(widget, x, y)
