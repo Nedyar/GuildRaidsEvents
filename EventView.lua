@@ -31,6 +31,51 @@ local shownKey   -- the event shown
 local Roles = ns.Roles
 local selectedRole
 
+-- A note in a sign-up's tooltip, as lines of at most NOTE_WIDTH pixels in
+-- the tooltip's font: words go on a line while they fit, and a word wider
+-- than a line (a long number, say) is cut where it reaches the edge. The
+-- tooltip cuts a wrapped line's word that does not fit with "...", but
+-- never a line added unwrapped, so each goes in unwrapped.
+local NOTE_WIDTH = 220
+local measure    -- a hidden font string in the tooltip's font
+
+local function TextWidth(text)
+    if not measure then
+        measure = view:CreateFontString(nil, "ARTWORK", "GameTooltipText")
+        measure:Hide()
+    end
+    measure:SetText(text)
+    return measure:GetStringWidth()
+end
+
+function EventView.NoteLines(note)
+    local lines, line = {}, ""
+    for word in note:gmatch("%S+") do
+        local joined = line == "" and word or line .. " " .. word
+        if TextWidth(joined) <= NOTE_WIDTH then
+            line = joined
+        else
+            if line ~= "" then
+                lines[#lines + 1] = line
+            end
+            -- On a line of its own, cut where it reaches the edge.
+            line = ""
+            for letter in word:gmatch("[%z\1-\127\194-\244][\128-\191]*") do
+                if line ~= "" and TextWidth(line .. letter) > NOTE_WIDTH then
+                    lines[#lines + 1] = line
+                    line = letter
+                else
+                    line = line .. letter
+                end
+            end
+        end
+    end
+    if line ~= "" then
+        lines[#lines + 1] = line
+    end
+    return lines
+end
+
 -- A sign-up's tooltip: its answer, status, note, and where it was made.
 local function ShowTooltip(owner, signUp)
     GameTooltip:SetOwner(owner, "ANCHOR_CURSOR_RIGHT")
@@ -44,7 +89,9 @@ local function ShowTooltip(owner, signUp)
         GameTooltip:AddLine(L["Level %d"]:format(signUp.level), 0.8, 0.8, 0.8)
     end
     if signUp.no then
-        GameTooltip:AddLine(signUp.no, 1, 1, 1, true)
+        for _, line in ipairs(EventView.NoteLines(signUp.no)) do
+            GameTooltip:AddLine(line, 1, 1, 1)
+        end
     end
     if signUp.external then
         GameTooltip:AddLine(L["Signed up outside the game."], 0.6, 0.8, 1, true)

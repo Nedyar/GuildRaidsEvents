@@ -108,6 +108,24 @@ H.check(view.Columns[2].Names[1]:IsShown() and view.Columns[2].Names[1].Text:Get
 H.check(view.Columns[2].Names[1].Text:GetText():find("(Signed up)", 1, true) ~= nil,
     "with their state by the name, signed up too, as every other state")
 H.check(view.Mine:GetText():find("Healer", 1, true) ~= nil, "and their answer under it")
+local nameButton = view.Columns[2].Names[1]
+nameButton:GetScript("OnEnter")(nameButton)
+local tipLines = member.env.GameTooltip._lines
+H.check(tipLines[#tipLines] == "late 10 min", "pointing at the name shows the note")
+-- A long note with no spaces was cut short with "..." in the tooltip: it
+-- goes in lines that fit (the tests measure 6 pixels a byte, so 36 in 220).
+local NoteLines = member.ns.EventView.NoteLines
+local digits = ("1234567890"):rep(6)
+local cutLines = NoteLines(digits)
+H.check(#cutLines == 2 and #cutLines[1] == 36 and table.concat(cutLines) == digits,
+    "a word wider than the tooltip is cut where it reaches the edge, nothing lost")
+local words = NoteLines("I will be a bit late tonight, start without me please")
+H.check(#words == 2 and words[1] == "I will be a bit late tonight, start" and words[2] == "without me please",
+    "a note with spaces breaks between words")
+local enes = ("ñ"):rep(25)
+local eneLines = NoteLines(enes)
+H.check(#eneLines == 2 and eneLines[1] == ("ñ"):rep(18) and table.concat(eneLines) == enes,
+    "letters of two bytes are never split")
 H.Click(view.Back)
 H.check(not view:IsShown() and list:IsShown(), "Back shows the list again")
 
