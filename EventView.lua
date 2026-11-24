@@ -31,11 +31,12 @@ local shownKey   -- the event shown
 local Roles = ns.Roles
 local selectedRole
 
--- A note in a sign-up's tooltip, as lines of at most NOTE_WIDTH pixels in
+-- A note in a sign-up's tooltip, as lines of about NOTE_WIDTH pixels in
 -- the tooltip's font: words go on a line while they fit, and a word wider
--- than a line (a long number, say) is cut where it reaches the edge. The
+-- than that (a long number, say) goes whole on a line of its own. The
 -- tooltip cuts a wrapped line's word that does not fit with "...", but
--- never a line added unwrapped, so each goes in unwrapped.
+-- never a line added unwrapped: each goes in unwrapped, and the tooltip
+-- widens to the longest.
 local NOTE_WIDTH = 220
 local measure    -- a hidden font string in the tooltip's font
 
@@ -58,16 +59,7 @@ function EventView.NoteLines(note)
             if line ~= "" then
                 lines[#lines + 1] = line
             end
-            -- On a line of its own, cut where it reaches the edge.
-            line = ""
-            for letter in word:gmatch("[%z\1-\127\194-\244][\128-\191]*") do
-                if line ~= "" and TextWidth(line .. letter) > NOTE_WIDTH then
-                    lines[#lines + 1] = line
-                    line = letter
-                else
-                    line = line .. letter
-                end
-            end
+            line = word
         end
     end
     if line ~= "" then
