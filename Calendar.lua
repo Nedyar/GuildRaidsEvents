@@ -43,9 +43,9 @@ local L = ns.L
 local Calendar = {}
 ns.Calendar = Calendar
 
-local Events = ns.Events
+local Events, States = ns.Events, ns.States
 
-local TICK = 10              -- seconds between looks at the calendar
+local TICK = 10             -- seconds between looks at the calendar
 local WAIT_STEP = 0.25
 local OPEN_TIMEOUT = 8       -- seconds an event may take to open
 local ACTION_TIMEOUT = 8
@@ -935,42 +935,19 @@ function Close()
     end
 end
 
--- The player's answer in the calendar, as the addon has it: "signed",
--- "tentative" or "none". In the calendar, a status the organizer gave
--- counts as signed up.
-local function CalendarAnswer(status)
-    local enum = Enum.CalendarStatus
-    if status == enum.Signedup or status == enum.Confirmed or status == enum.Standby or status == enum.Out then
-        return "signed"
-    elseif status == enum.Tentative then
-        return "tentative"
-    end
-    return "none"
-end
-
 -- The answer the calendar should have, and whether the player's sign-up
 -- has a status in the addon.
 local function WantedAnswer(event)
     local mine = Events.Mine(event)
-    local managed = mine ~= nil and mine.status ~= Events.NONE
-    if mine and mine.st == Events.SIGNED then
-        return "signed", managed
-    elseif mine and mine.st == Events.TENTATIVE then
-        return "tentative", managed
-    end
-    return "none", false
+    local wanted = States.WantedAnswer(mine)
+    return wanted, wanted ~= "none" and mine.status ~= Events.NONE
 end
 
--- An answer given in the game's calendar, into the addon.
+-- An answer given in the game's calendar ("signed", "tentative" or
+-- "none"), into the addon, as the player's own.
 local function TakeAnswer(key, event, has)
     local mine = Events.Mine(event)
-    if has == "signed" then
-        Events.Answer(key, Events.SIGNED, mine and mine.ro or Events.LastRole(), mine and mine.no)
-    elseif has == "tentative" then
-        Events.Answer(key, Events.TENTATIVE, mine and mine.ro or Events.LastRole(), mine and mine.no)
-    else
-        Events.Answer(key, nil)
-    end
+    States.SetMine(key, has, mine and mine.ro or Events.LastRole(), mine and mine.no, false)
     Note("from the calendar", "took your answer given there: " .. event.ti)
 end
 
@@ -985,7 +962,7 @@ local function AnswerToSend(now)
             local listed = not entry and GuildEntry(event.ci)
             local status = entry and Plain(entry.ev.inviteStatus) or listed and Plain(listed.inviteStatus)
             if status ~= nil then
-                local has = CalendarAnswer(status)
+                local has = States.CalendarAnswer(status)
                 local wanted, managed = WantedAnswer(event)
                 local stored = answers[key]
                 local agreed = type(stored) == "table" and stored.ci == event.ci and stored.a or nil
@@ -1052,62 +1029,28 @@ local function SendAnswer(key, entry, has, wanted)
     end)
 end
 
--- The calendar status each status of the addon stands for, and back.
-local function CalendarStatus(status)
-    local enum = Enum.CalendarStatus
-    return ({ [Events.CONFIRMED] = enum.Confirmed, [Events.STANDBY] = enum.Standby, [Events.OUT] = enum.Out,
-        [Events.PROVISIONAL] = enum.Tentative })[status]
-end
-
-local function AddonStatus(status)
-    local enum = Enum.CalendarStatus
-    return ({ [enum.Confirmed] = Events.CONFIRMED, [enum.Standby] = Events.STANDBY, [enum.Out] = Events.OUT,
-        [enum.Tentative] = Events.PROVISIONAL, [enum.Signedup] = Events.NONE })[status]
-end
-
--- The calendar status each sign-up of the event should have: [guid] = status.
--- The organizer's own line in the calendar: the game offers its creator
--- Confirmed, Standby, Out and Tentative (not Signed up nor Declined), so
--- signed up with no status is Confirmed, and not coming is Out.
-local function OwnStatus(event)
-    local enum = Enum.CalendarStatus
-    local mine = Events.Mine(event)
-    if not mine or mine.st == Events.DECLINED then
-        return enum.Out
-    elseif mine.st == Events.TENTATIVE then
-        return enum.Tentative
-    end
-    return CalendarStatus(mine.status) or enum.Confirmed
-end
-
 -- The calendar status each sign-up of the event should have: [guid] =
 -- status. The organizer's own line too.
 local function WantedStatuses(event)
-    local wanted = {}
+    local wanted, mine = {}, nil
     for _, signUp in ipairs(Events.SignUps(event)) do
-        if signUp.st == Events.SIGNED or signUp.status ~= Events.NONE then
-            wanted[signUp.guid] = CalendarStatus(signUp.status) or Enum.CalendarStatus.Signedup
+        wanted[signUp.guid] = States.CalendarStatusOf(signUp)
+        if signUp.guid == ns.playerGUID then
+            mine = signUp
         end
     end
     if event.owner == ns.playerGUID then
-        wanted[ns.playerGUID] = OwnStatus(event)
+        wanted[ns.playerGUID] = States.OrganizerCalendarStatus(mine)
     end
     return wanted
 end
 
 -- The organizer's own status given in the calendar, into the addon.
 local function TakeOwnStatus(key, event, status)
-    local enum = Enum.CalendarStatus
+    local state = States.FromCalendar(status)
     local mine = Events.Mine(event)
-    local role, note = mine and mine.ro or Events.LastRole(), mine and mine.no
-    if status == enum.Tentative then
-        Events.Answer(key, Events.TENTATIVE, role, note)
-        Events.SetStatus(key, ns.playerGUID, Events.PROVISIONAL)
-    elseif AddonStatus(status) then
-        if not mine or mine.st ~= Events.SIGNED then
-            Events.Answer(key, Events.SIGNED, role, note)
-        end
-        Events.SetStatus(key, ns.playerGUID, AddonStatus(status))
+    if state then
+        States.SetMine(key, state, mine and mine.ro or Events.LastRole(), mine and mine.no, true)
     end
 end
 
@@ -1157,12 +1100,13 @@ local function StatusChanges(key, event)
             local signedUp = status ~= Enum.CalendarStatus.NotSignedup and status ~= Enum.CalendarStatus.Declined
             if target and signedUp then
                 local agreed = agreedOf[guid] or Enum.CalendarStatus.Signedup
+                local given = States.StatusOf(States.FromCalendar(status))
                 if status == target then
                     agreedOf[guid] = status
-                elseif target == agreed and AddonStatus(status) then
+                elseif target == agreed and given then
                     -- Given in the calendar since: the addon takes it.
                     agreedOf[guid] = status
-                    Events.SetStatus(key, guid, AddonStatus(status))
+                    Events.SetStatus(key, guid, given)
                     Note("from the calendar", "took a status given there: " .. event.ti)
                 else
                     changes[#changes + 1] = { guid = guid, status = target }

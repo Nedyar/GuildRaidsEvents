@@ -166,7 +166,7 @@ local function DamageName(guid)
         end
     end
 end
-H.check(ns.Events.IsTentative(MineOf(organizer)) and DamageName(organizer.guid) ~= nil,
+H.check(ns.States.IsTentative(MineOf(organizer)) and DamageName(organizer.guid) ~= nil,
     "the organizer answers Tentative: still in their role's column, as tentative")
 H.check(DamageName(organizer.guid).Text:GetText():find("(Tentative)", 1, true) ~= nil,
     "with their state by the name, though it is their answer and not a status given")
@@ -176,7 +176,7 @@ H.MenuEntry(organizer.contextMenu, "Confirmed").setSelected()
 world:RunFor(2)
 ns.EventView.Refresh()
 local own = MineOf(organizer)
-H.check(own.st == 1 and own.status == 1 and ns.Events.Goes(own), "then Confirmed from the menu: signed up and confirmed")
+H.check(own.st == 1 and own.status == 1 and ns.States.Goes(own), "then Confirmed from the menu: signed up and confirmed")
 local inDamage = false
 for _, name in ipairs(orgView.Columns[3].Names) do
     inDamage = inDamage or (name:IsShown() and name.signUp and name.signUp.guid == organizer.guid)
@@ -184,7 +184,7 @@ end
 H.check(inDamage, "back in their role's column")
 H.Click(orgView.OwnTentative)
 world:RunFor(2)
-H.check(ns.Events.IsTentative(MineOf(organizer)), "answering Tentative again after it makes them tentative")
+H.check(ns.States.IsTentative(MineOf(organizer)), "answering Tentative again after it makes them tentative")
 ns.EventView.Refresh()
 organizer.contextMenu = nil
 H.Click(DamageName(organizer.guid))
@@ -198,7 +198,7 @@ for _, name in ipairs(orgView.Columns[2].Names) do
 end
 H.MenuEntry(organizer.contextMenu, "Tentative").setSelected()
 world:RunFor(30)
-H.check(ns.Events.IsTentative(MineOf(member)), "a member made tentative by the organizer is tentative for everyone")
+H.check(ns.States.IsTentative(MineOf(member)), "a member made tentative by the organizer is tentative for everyone")
 member.ns.EventView.Open(key)
 H.check(not view.SignUp:IsEnabled() and not view.Tentative:IsEnabled() and view.Remove:IsEnabled(),
     "made tentative, the member only removes their sign-up, as in the game")
@@ -214,7 +214,7 @@ world:RunFor(15)
 H.check(view.SignUp:IsEnabled() and view.Tentative:IsEnabled(), "back in their calendar: they answer again")
 H.Click(view.SignUp)
 world:RunFor(30)
-H.check(MineOf(member).st == 1 and ns.Events.Goes(MineOf(member)) and (MineOf(member).status == 0 or MineOf(member).auto),
+H.check(MineOf(member).st == 1 and ns.States.Goes(MineOf(member)) and (MineOf(member).status == 0 or MineOf(member).auto),
     "signing up again after it: signed up, with no status of the organizer's, as in the game")
 H.check(orgView.Confirm:IsShown() and orgView.Standby:IsShown() and orgView.OwnTentative:IsShown() and orgView.Out:IsShown()
     and not orgView.SignUp:IsShown() and not orgView.Remove:IsShown(),
@@ -230,13 +230,13 @@ H.check(orgView.Mine:GetText():find("Out", 1, true) ~= nil and not orgView.Mine:
     "and their state reads Out, nothing else")
 H.Click(orgView.Confirm)
 world:RunFor(2)
-H.check(MineOf(organizer).status == 1 and ns.Events.Goes(MineOf(organizer)), "Confirmed: confirmed again, not left out")
+H.check(MineOf(organizer).status == 1 and ns.States.Goes(MineOf(organizer)), "Confirmed: confirmed again, not left out")
 H.Click(orgView.OwnTentative)
 world:RunFor(2)
-H.check(ns.Events.IsTentative(MineOf(organizer)), "Tentative: tentative")
+H.check(ns.States.IsTentative(MineOf(organizer)), "Tentative: tentative")
 H.Click(orgView.Standby)
 world:RunFor(2)
-H.check(MineOf(organizer).status == 2 and ns.Events.Goes(MineOf(organizer)), "Standby: on standby")
+H.check(MineOf(organizer).status == 2 and ns.States.Goes(MineOf(organizer)), "Standby: on standby")
 H.Click(orgView.Confirm)
 world:RunFor(2)
 H.Click(orgView.Cancel)

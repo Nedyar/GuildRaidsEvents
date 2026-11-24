@@ -261,27 +261,10 @@ function Events.Statuses(event)
     return statuses
 end
 
--- A sign-up's one state, as the game's calendar keeps one: the member's
--- answer and the status given by those who manage the event, the newer
--- winning where they disagree. Confirmed, standby or out given to someone
--- tentative signs them up; someone made tentative who signs up again is
--- signed up with no status; and so on. Returns st, status.
-local function OneState(answer, status)
-    if not status or status.st == Events.NONE or answer.st == Events.DECLINED then
-        return answer.st, Events.NONE
-    end
-    local given = status.st
-    local tentative = given == Events.PROVISIONAL
-    local agree = (answer.st == Events.TENTATIVE) == tentative
-    if agree or status.at >= (answer.at or 0) then
-        return tentative and answer.st or Events.SIGNED, given
-    end
-    return answer.st, Events.NONE
-end
-
 -- An event's sign-ups as shown, in the order they were made: { guid,
 -- name, class, level, st, ro, no, at, external, status, auto } (status:
--- Events.NONE... PROVISIONAL; auto: the event set it by itself).
+-- Events.NONE... PROVISIONAL; auto: the event set it by itself). The answer
+-- and the status are made one as the game's calendar has it (States.Merge).
 function Events.SignUps(event)
     local statuses = Events.Statuses(event)
     local list = {}
@@ -290,7 +273,7 @@ function Events.SignUps(event)
         answer.name = Events.MemberName(guid)
         answer.class = entry and entry.c
         answer.level = entry and entry.l
-        answer.st, answer.status = OneState(answer, statuses[guid])
+        answer.st, answer.status = ns.States.Merge(answer, statuses[guid])
         list[#list + 1] = answer
     end
     table.sort(list, function(a, b)
@@ -324,23 +307,14 @@ function Events.SignUps(event)
     return list
 end
 
--- Whether a sign-up goes (signed up, not left out nor made tentative), and
--- whether it is tentative (by its answer or its status).
-function Events.Goes(signUp)
-    return signUp.st == Events.SIGNED and signUp.status ~= Events.OUT and signUp.status ~= Events.PROVISIONAL
-end
-
-function Events.IsTentative(signUp)
-    return signUp.st == Events.TENTATIVE or (signUp.st == Events.SIGNED and signUp.status == Events.PROVISIONAL)
-end
-
 -- How many are in each role, those tentative too (all but those left out),
 -- and how many of them are tentative: { [role] = count }, tentative.
 function Events.Counts(signUps)
+    local States = ns.States
     local counts, tentative = { 0, 0, 0 }, 0
     for _, signUp in ipairs(signUps) do
-        local isTentative = Events.IsTentative(signUp)
-        if Events.Goes(signUp) or isTentative then
+        local isTentative = States.IsTentative(signUp)
+        if States.Goes(signUp) or isTentative then
             local role = signUp.ro or Events.DAMAGE
             counts[role] = counts[role] + 1
         end

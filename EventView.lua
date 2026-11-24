@@ -15,7 +15,7 @@ local L = ns.L
 local EventView = {}
 ns.EventView = EventView
 
-local Events, UI = ns.Events, ns.UI
+local Events, States, UI = ns.Events, ns.States, ns.UI
 
 local COLUMN_WIDTH, COLUMN_GAP = 178, 8
 local NAME_HEIGHT = 16
@@ -40,7 +40,7 @@ local selectedRole
 local function ShowTooltip(owner, signUp)
     GameTooltip:SetOwner(owner, "ANCHOR_CURSOR_RIGHT")
     GameTooltip:SetText(UI.ClassColored(signUp.name or "?", signUp.class), 1, 1, 1)
-    local status = UI.StateName(UI.State(signUp))
+    local status = UI.StateName(States.Of(signUp))
     if signUp.auto then
         status = ("%s (%s)"):format(status, L["automatically"])
     end
@@ -103,7 +103,7 @@ end
 -- the order they signed up (order).
 function EventView.SortColumn(list)
     table.sort(list, function(a, b)
-        local ra, rb = COLUMN_ORDER[UI.State(a)] or 9, COLUMN_ORDER[UI.State(b)] or 9
+        local ra, rb = COLUMN_ORDER[States.Of(a)] or 9, COLUMN_ORDER[States.Of(b)] or 9
         if ra ~= rb then
             return ra < rb
         end
@@ -149,7 +149,7 @@ end
 -- member's answer or a status given), in the game's colour for it.
 local function NameText(signUp)
     local name = UI.ClassColored(signUp.name or "?", signUp.class)
-    local state = UI.State(signUp)
+    local state = States.Of(signUp)
     local mark = " " .. UI.Colored(("(%s)"):format(UI.StateName(state)), UI.StateColor(state))
     if signUp.no then
         mark = mark .. " |cff888888*|r"
@@ -157,13 +157,16 @@ local function NameText(signUp)
     return name .. mark
 end
 
-local function Answer(st)
+-- The player gives themselves a state with one of their buttons, with the
+-- role and note chosen: a member answers; the organizer (the event's
+-- creator, whom the game keeps in it) answers and sets their own status.
+local function SetOwnState(state)
     local event = Events.Get(shownKey)
     if not event then
         return
     end
     local note = strtrim(view.Note:GetText() or "")
-    Events.Answer(event.key, st, selectedRole or LastRole(), note)
+    States.SetMine(event.key, state, selectedRole or LastRole(), note, event.owner == ns.playerGUID)
 end
 
 local function CreateControls()
@@ -202,40 +205,17 @@ local function CreateControls()
     -- calendar offers them: a member signs up, signs up as tentative or
     -- removes their sign-up; the organizer (the event's creator, whom the
     -- game keeps in it) is confirmed, on standby, tentative or out.
-    local function OwnState(state)
-        local event = Events.Get(shownKey)
-        if not event then
-            return
-        end
-        local note = strtrim(view.Note:GetText() or "")
-        local role = selectedRole or LastRole()
-        if state == "tentative" then
-            Events.Answer(event.key, Events.TENTATIVE, role, note)
-            Events.SetStatus(event.key, ns.playerGUID, Events.PROVISIONAL)
-        else
-            Events.Answer(event.key, Events.SIGNED, role, note)
-            Events.SetStatus(event.key, ns.playerGUID,
-                ({ confirmed = Events.CONFIRMED, standby = Events.STANDBY, out = Events.OUT })[state])
-        end
+    local function StateButton(state, text)
+        return { state = state, button = UI.Button(view, text or UI.StateName(state), function()
+            SetOwnState(state)
+        end) }
     end
     view.States = {
-        member = {
-            { state = "signed", button = UI.Button(view, UI.StateName("signed"), function()
-                Answer(Events.SIGNED)
-            end) },
-            { state = "tentative", button = UI.Button(view, UI.StateName("tentative"), function()
-                Answer(Events.TENTATIVE)
-            end) },
-            { state = "none", button = UI.Button(view, L["Remove sign-up"], function()
-                Answer(nil)
-            end) },
-        },
+        member = { StateButton("signed"), StateButton("tentative"), StateButton("none", L["Remove sign-up"]) },
         organizer = {},
     }
     for _, state in ipairs({ "confirmed", "standby", "tentative", "out" }) do
-        table.insert(view.States.organizer, { state = state, button = UI.Button(view, UI.StateName(state), function()
-            OwnState(state)
-        end) })
+        table.insert(view.States.organizer, StateButton(state))
     end
     view.SignUp, view.Tentative, view.Remove = view.States.member[1].button, view.States.member[2].button,
         view.States.member[3].button
@@ -427,7 +407,7 @@ function EventView.Refresh()
     local byRole, out = { {}, {}, {} }, {}
     for index, signUp in ipairs(signUps) do
         signUp.order = index
-        if Events.Goes(signUp) or Events.IsTentative(signUp) then
+        if States.Goes(signUp) or States.IsTentative(signUp) then
             table.insert(byRole[signUp.ro or Events.DAMAGE], signUp)
         elseif signUp.st == Events.SIGNED then
             out[#out + 1] = signUp
@@ -470,7 +450,7 @@ function EventView.UpdateControls(signUps)
         return
     end
     local mine = Events.Mine(event, signUps)
-    local state = UI.State(mine)
+    local state = States.Of(mine)
     local organizer = event.owner == ns.playerGUID
     -- Create in calendar, for one of the player's events not there yet, as
     -- the game lets it now; then the title up to the first button.
@@ -528,7 +508,7 @@ function EventView.UpdateControls(signUps)
         local current = state == item.state
         if item.state == "signed" then
             -- Signed up includes the statuses the organizer gives.
-            current = state == "signed" or state == "confirmed" or state == "standby" or state == "out"
+            current = States.IsSignedUp(state)
         end
         if item.state == "none" then
             -- Removing: while there is a sign-up and the event is to come.

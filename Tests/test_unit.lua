@@ -349,6 +349,36 @@ H.eq(#Titled("Far raid"), 1, "an event not weekly is alone")
 H.check(Events.Change(farKey, { ty = 0, ti = "Far raid", tm = Events.Now() + 20 * 86400, ml = 0, wk = true })
     and #Titled("Far raid") == 2, "made weekly when changed: next week's at once")
 
+H.section("States: one state, in the data and in the calendar")
+local States, CS = ns.States, solo.env.Enum.CalendarStatus
+local function MergeOf(answerSt, answerAt, statusSt, statusAt)
+    return States.Merge({ st = answerSt, at = answerAt }, statusSt and { st = statusSt, at = statusAt } or nil)
+end
+local mergedSt, mergedStatus = MergeOf(Events.TENTATIVE, 10, Events.CONFIRMED, 20)
+H.check(mergedSt == Events.SIGNED and mergedStatus == Events.CONFIRMED, "confirmed after answering tentative: signed up and confirmed")
+mergedSt, mergedStatus = MergeOf(Events.TENTATIVE, 30, Events.CONFIRMED, 20)
+H.check(mergedSt == Events.TENTATIVE and mergedStatus == Events.NONE, "tentative again after being confirmed: tentative, no status")
+mergedSt, mergedStatus = MergeOf(Events.SIGNED, 30, Events.PROVISIONAL, 20)
+H.check(mergedSt == Events.SIGNED and mergedStatus == Events.NONE, "signed up after being made tentative: signed up")
+H.eq(States.Of(nil), "none", "no sign-up: none")
+H.eq(States.Of({ st = Events.SIGNED, status = Events.PROVISIONAL }), "tentative", "made tentative: tentative")
+H.eq(States.Of({ st = Events.SIGNED, status = Events.OUT }), "out", "left out: out")
+H.eq(States.Of({ st = Events.DECLINED, status = Events.NONE }), "none", "not coming: none")
+local roundTrip = true
+for _, state in ipairs({ "signed", "tentative", "confirmed", "standby", "out" }) do
+    roundTrip = roundTrip and States.FromCalendar(CS[States.CALENDAR_NAMES[state]]) == state
+end
+H.check(roundTrip, "each state to the calendar's status and back")
+H.eq(States.FromCalendar(CS.NotSignedup), nil, "not signed up in the calendar gives no state to take")
+H.check(States.CalendarAnswer(CS.Standby) == "signed" and States.CalendarAnswer(CS.Tentative) == "tentative"
+    and States.CalendarAnswer(CS.NotSignedup) == "none", "a member's answer in the calendar: a status given counts as signed up")
+H.check(States.OrganizerCalendarStatus(nil) == CS.Out
+    and States.OrganizerCalendarStatus({ st = Events.SIGNED, status = Events.NONE }) == CS.Confirmed,
+    "the organizer's line: no answer is Out, signed up with no status is Confirmed")
+H.check(States.CalendarStatusOf({ st = Events.TENTATIVE, status = Events.NONE }) == nil
+    and States.CalendarStatusOf({ st = Events.SIGNED, status = Events.NONE }) == CS.Signedup,
+    "a member tentative by their own answer gets no status from the organizer")
+
 H.section("Locales")
 local function ReadKeys(paths)
     local keys = {}

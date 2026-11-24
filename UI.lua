@@ -178,18 +178,7 @@ function UI.StatusName(status)
     return L["No status"]
 end
 
--- A sign-up's one state, as the game's calendar names it: "none",
--- "signed", "tentative", "confirmed", "standby" or "out".
-function UI.State(signUp)
-    if not signUp or signUp.st == Events.DECLINED then
-        return "none"
-    elseif Events.IsTentative(signUp) then
-        return "tentative"
-    end
-    return ({ [Events.CONFIRMED] = "confirmed", [Events.STANDBY] = "standby", [Events.OUT] = "out" })[signUp.status]
-        or "signed"
-end
-
+-- A state's name (States.lua), as the game's calendar names it.
 function UI.StateName(state)
     if state == "none" then
         return CALENDAR_STATUS_NOT_SIGNEDUP or L["Not signed up"]
@@ -198,7 +187,7 @@ function UI.StateName(state)
     elseif state == "tentative" then
         return UI.AnswerName(Events.TENTATIVE)
     end
-    return UI.StatusName(({ confirmed = Events.CONFIRMED, standby = Events.STANDBY, out = Events.OUT })[state])
+    return UI.StatusName(ns.States.StatusOf(state))
 end
 
 -- Each state's colour, the game calendar's own (CALENDAR_INVITESTATUS_INFO)
@@ -207,14 +196,10 @@ local STATE_COLORS = {
     none = { 0.5, 0.5, 0.5 }, signed = { 0.1, 1, 0.1 }, tentative = { 1, 0.5, 0.25 }, confirmed = { 0.1, 1, 0.1 },
     standby = { 1, 0.5, 0.25 }, out = { 1, 0.1, 0.1 },
 }
-local STATE_STATUS = {
-    none = "NotSignedup", signed = "Signedup", tentative = "Tentative", confirmed = "Confirmed", standby = "Standby",
-    out = "Out",
-}
 
 function UI.StateColor(state)
     local info = CALENDAR_INVITESTATUS_INFO and Enum.CalendarStatus
-        and CALENDAR_INVITESTATUS_INFO[Enum.CalendarStatus[STATE_STATUS[state]]]
+        and CALENDAR_INVITESTATUS_INFO[Enum.CalendarStatus[ns.States.CALENDAR_NAMES[state]]]
     local color = type(info) == "table" and info.color
     if type(color) == "table" and color.r then
         return { color.r, color.g, color.b }
@@ -238,7 +223,7 @@ end
 
 -- The state of a sign-up (or of none) by its name, in its colour.
 function UI.StateText(signUp)
-    local state = UI.State(signUp)
+    local state = ns.States.Of(signUp)
     return UI.Colored(UI.StateName(state), UI.StateColor(state))
 end
 
