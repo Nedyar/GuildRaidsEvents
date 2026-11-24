@@ -1,0 +1,17 @@
+# Changelog
+
+## 0.1.0 - First version
+
+- **A Raids & Events tab on the guild window**, under Blizzard's own tabs: the guild's upcoming events, the soonest first, and those of the last week. Each row shows when the event is, its type and organizer, how many signed up in each role, and your answer.
+- **Events with sign-ups by role**: tanks, healers and damage, each with places or no limit, a minimum level, and a short note with each sign-up. Answer Signed up or Tentative, or remove your sign-up, from the event's view, as in the game's calendar.
+- **Where it takes place**: a raid or a dungeon names its instance, PvP world PvP or a battleground, picked from a list with the game's own names. The day is picked in a month's calendar, up to the last day the game's calendar takes, and the time from lists as in the game's calendar (its 12- or 24-hour clock, minutes five by five).
+- **Confirmations**: the organizer, the guild master and the officers (ranks with "Has officer privileges") give sign-ups the game's statuses: confirmed, standby, out or tentative. An event can confirm sign-ups automatically: the first to sign up in each role while it has places, the rest on standby.
+- **Locked events**: the game's Lock event, in the form. Members then cannot answer the event, in the addon as in the game's calendar; the organizer still can.
+- **The game's calendar, both ways**: each event is a guild sign-up event in the calendar, kept in step wherever a change is made, also with the calendar's window open. Create, Save, Cancel event and Restore event change the calendar with the same click. Changes made in the calendar's window (title, time, type, description, lock, statuses) come into the addon, an event deleted there is cancelled, a guild event created there comes in as its creator's, and sign-ups made there count. Your answer and the organizer's confirmations reach the calendar by themselves.
+- **Weekly events**: a weekly event comes with next week's at once, and the one after is made each time one starts, so there are always two to come; each goes to the calendar with its Create in calendar button, in its view and on its row, off while the game takes no new event or after it reported its limit.
+- **Cancelled events** in a subtab of their own, by date.
+- **The calendar first**: Create and Restore event put the event in the game's calendar first, and it comes into the addon once the calendar has it. The addon has no limit of its own; when the calendar refuses one for its limit of events created, nothing comes into the addon, and Create, New event and Restore event stay off with the game's message until one of yours leaves the calendar.
+- **Clear cancelled**: cancelled events can be cleared, all at once or one by one: your own are deleted, for everyone (and from the game's calendar, if still there); the others' leave only your list.
+- **Reminders**: a raid warning, a chat line and a sound before the events you go to: 5, 15, 30 or 60 minutes before, or none, in the options.
+- **The notification mark** on the tab and on the micro menu's guild button while an upcoming event waits for your answer.
+- **For other addons**: a public API (`GuildRaidsEvents`) to read the events and to bring in sign-ups made outside the game, through characters the guild master chooses in the options.

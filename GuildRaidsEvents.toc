@@ -1,0 +1,46 @@
+## Interface: 16001
+## Title: Guild Raids & Events
+## Notes: Organize your guild's raids, dungeons and events from a tab on the guild window, linked to the game's calendar: sign-ups by role with a note, confirmations, weekly events and reminders.
+## Notes-deDE: Organisiere die Schlachtzüge, Dungeons und Termine deiner Gilde über einen Reiter im Gildenfenster, verknüpft mit dem Kalender des Spiels: Anmeldungen nach Rolle mit Notiz, Bestätigungen, wöchentliche Termine und Erinnerungen.
+## Notes-esES: Organiza las bandas, mazmorras y eventos de tu hermandad desde una pestaña de la ventana de hermandad, enlazada con el calendario del juego: inscripciones por rol con nota, confirmaciones, eventos semanales y recordatorios.
+## Notes-esMX: Organiza las bandas, calabozos y eventos de tu hermandad desde una pestaña de la ventana de hermandad, enlazada con el calendario del juego: inscripciones por rol con nota, confirmaciones, eventos semanales y recordatorios.
+## Notes-frFR: Organisez les raids, donjons et évènements de votre guilde depuis un onglet de la fenêtre de guilde, lié au calendrier du jeu : inscriptions par rôle avec une note, confirmations, évènements hebdomadaires et rappels.
+## Notes-itIT: Organizza le incursioni, le spedizioni e gli eventi della tua gilda da una scheda della finestra della gilda, collegata al calendario del gioco: iscrizioni per ruolo con una nota, conferme, eventi settimanali e promemoria.
+## Notes-koKR: 길드 창의 탭에서 길드의 공격대, 던전, 일정을 게임 달력과 연동해 관리합니다. 역할별 참가 신청과 메모, 확정, 매주 반복 일정, 알림을 지원합니다.
+## Notes-ptBR: Organize as raides, masmorras e eventos da sua guilda a partir de uma aba da janela da guilda, ligada ao calendário do jogo: inscrições por função com nota, confirmações, eventos semanais e lembretes.
+## Notes-ruRU: Организуйте рейды, подземелья и события гильдии на вкладке окна гильдии, связанной с календарём игры: запись по ролям с заметкой, подтверждения, еженедельные события и напоминания.
+## Notes-zhCN: 在公会窗口的标签页中组织公会的团队副本、地下城和活动，并与游戏日历关联：按职责报名并附注、确认、每周活动和提醒。
+## Notes-zhTW: 在公會視窗的標籤頁中安排公會的團隊副本、地城和活動，並與遊戲行事曆連動：依職責報名並附註、確認、每週活動與提醒。
+## Author: Nedyar
+## Version: 0.1.0
+## Dependencies: LibGuildSync
+## SavedVariables: GuildRaidsEventsDB
+## IconTexture: Interface\Icons\INV_Misc_Head_Dragon_01
+
+Locales\Locales.lua
+Locales\deDE.lua
+Locales\esES.lua
+Locales\esMX.lua
+Locales\frFR.lua
+Locales\itIT.lua
+Locales\koKR.lua
+Locales\ptBR.lua
+Locales\ruRU.lua
+Locales\zhCN.lua
+Locales\zhTW.lua
+
+Core.lua
+Pack.lua
+Data.lua
+Rights.lua
+Events.lua
+Calendar.lua
+Reminders.lua
+API.lua
+UI.lua
+EventList.lua
+EventView.lua
+EventForm.lua
+GuildTab.lua
+Options.lua
+Probe.lua
