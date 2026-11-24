@@ -144,7 +144,6 @@ end
 GuildTab.Refresh = RefreshPage
 
 local function SelectSubTab(index)
-    ns.Calendar.OnClick()
     if SOUNDKIT and SOUNDKIT.IG_CHARACTER_INFO_TAB then
         PlaySound(SOUNDKIT.IG_CHARACTER_INFO_TAB)
     end
@@ -165,9 +164,9 @@ local function CreateSubTabs()
         else
             subtab:SetPoint("LEFT", tabs[i - 1], "RIGHT", 2, 0)
         end
-        subtab:SetScript("OnClick", function(self)
+        subtab:SetScript("OnClick", UI.Clicked(function(self)
             SelectSubTab(self:GetID())
-        end)
+        end))
         tabs[i] = subtab
     end
     holder.Tabs = tabs
@@ -247,7 +246,6 @@ local function Close()
 end
 
 local function ShowPage()
-    ns.Calendar.OnClick()
     if page:IsShown() then
         return
     end
@@ -395,7 +393,7 @@ local function Setup()
     tab.tooltip = L["Raids & Events"]
     tab.Badge = UI.NewMark(tab)
     -- After the template's own click (its sound, and marking itself).
-    tab:HookScript("OnClick", ShowPage)
+    tab:HookScript("OnClick", UI.Clicked(ShowPage))
     tab:Hide()
     table.insert(Panels(), { id = ID, order = ORDER, tab = tab, Close = Close })
     hooksecurefunc(communities, "UpdateCommunitiesTabs", Update)

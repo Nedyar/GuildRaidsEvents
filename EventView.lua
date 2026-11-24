@@ -69,7 +69,6 @@ end
 
 -- The menu of a sign-up, for those who may manage the event.
 local function StatusMenu(owner, signUp)
-    ns.Calendar.OnClick()
     local event = Events.Get(shownKey)
     if not signUp or not event or not ns.Rights.MayIManage(event) then
         return
@@ -137,7 +136,7 @@ local function CreateColumn(index)
         highlight:SetColorTexture(1, 1, 1, 0.08)
         button:SetScript("OnEnter", NameOnEnter)
         button:SetScript("OnLeave", GameTooltip_Hide)
-        button:SetScript("OnClick", NameOnClick)
+        button:SetScript("OnClick", UI.Clicked(NameOnClick))
         column.Names[row] = button
     end
     column.More = column:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
@@ -277,10 +276,9 @@ function EventView.Create(parent)
         if not event then
             return
         elseif event.x then
-            ns.Calendar.RestoreFirst(event.key)
+            ns.Calendar.Restore(event.key)
         else
-            ns.Calendar.DeleteFirst(event.key)
-            Events.Cancel(event.key)
+            ns.Calendar.Cancel(event.key)
         end
     end, true)
     view.Cancel:SetPoint("RIGHT", view.Back, "LEFT", -4, 0)
@@ -296,10 +294,7 @@ function EventView.Create(parent)
     -- A cancelled event of one's own is deleted, for everyone (and from the
     -- game's calendar, if still there), as clearing it does.
     view.Delete = UI.Button(view, DELETE or L["Delete"], function()
-        local event = Events.Get(shownKey)
-        if event and event.x and event.owner == ns.playerGUID then
-            ns.Calendar.Forget(event.key, event)
-            Events.Delete(event.key)
+        if ns.Calendar.Delete(shownKey) then
             EventView.Close()
         end
     end)
@@ -338,12 +333,12 @@ function EventView.Create(parent)
         end
     end)
     view:SetScript("OnHyperlinkLeave", GameTooltip_Hide)
-    view:SetScript("OnHyperlinkClick", function(self, link)
+    view:SetScript("OnHyperlinkClick", UI.Clicked(function(self, link)
         local signUp = LinkedSignUp(link)
         if signUp then
             StatusMenu(self, signUp)
         end
-    end)
+    end))
     CreateControls()
     return view
 end

@@ -132,7 +132,9 @@ function Events.Invalidate()
     cache = nil
 end
 
+-- An event's fields (Pack.lua says what each is).
 local FIELDS = { "ty", "ti", "tm", "de", "sl", "ml", "ii", "wk", "nx", "ac", "lk", "x", "at" }
+Events.FIELDS = FIELDS
 
 local function Build()
     local events = {}

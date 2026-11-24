@@ -285,8 +285,7 @@ ns.EventForm.Open(key)
 world:RunFor(5)
 form:Hide()
 organizer.inClick = true
-ns.Calendar.DeleteFirst(key)
-ns.Events.Cancel(key)
+ns.Calendar.Cancel(key)
 organizer.inClick = false
 H.check(InCalendar().deleted, "the event was open (the form had just changed it): deleted inside the click")
 H.check(ns.Events.Get(key).x, "the addon keeps it, marked cancelled")
@@ -297,7 +296,7 @@ ClickSomewhere(organizer)
 world:RunFor(10)
 H.eq(Count(organizer.calendarCalls, "AddEvent"), creates, "and nothing creates it again")
 organizer.inClick = true
-H.check(ns.Calendar.RestoreFirst(key), "restoring it")
+H.check(ns.Calendar.Restore(key), "restoring it")
 organizer.inClick = false
 world:RunFor(30)
 H.check(not ns.Events.Get(key).x and #CalendarEvents() == 1 and ns.Events.Get(key).ci == CalendarEvents()[1].id,
@@ -317,12 +316,11 @@ world:RunFor(320)
 H.eq(InCalendar().invites[organizer.guid].status, 5, "the organizer on standby in the calendar")
 H.check(InCalendar().invites[member.guid] ~= nil and InCalendar().invites[member.guid].status ~= 8, "the member signed up there")
 organizer.inClick = true
-ns.Calendar.DeleteFirst(key)
-ns.Events.Cancel(key)
+ns.Calendar.Cancel(key)
 organizer.inClick = false
 world:RunFor(10)
 organizer.inClick = true
-ns.Calendar.RestoreFirst(key)
+ns.Calendar.Restore(key)
 organizer.inClick = false
 world:RunFor(60)
 calendarID = ns.Events.Get(key).ci
@@ -359,7 +357,7 @@ Errors("deleted in the calendar window")
 H.section("Calendar: copies of an event are deleted")
 local restored = ns.Events.Get(key)
 organizer.inClick = true
-ns.Calendar.RestoreFirst(key)
+ns.Calendar.Restore(key)
 organizer.inClick = false
 world:RunFor(30)
 local original = ns.Events.Get(key).ci
@@ -387,8 +385,7 @@ world:RunFor(30)
 H.check(member.ns.Events.Get(adopted.key) ~= nil, "for everyone")
 H.eq(#CalendarEvents(), 2, "and makes no copy")
 local adoptedID = adopted.ci
-H.check(ns.Calendar.DeleteFirst(adopted.key) == false, "an event not open cannot go inside the click")
-ns.Events.Cancel(adopted.key)
+H.check(ns.Calendar.Cancel(adopted.key) == false, "an event not open cannot go inside the click")
 world:RunFor(5)
 H.check(world.calendar.events[adoptedID].deleted, "it is opened, then deleted a moment later")
 Errors("made in the calendar window")
@@ -583,7 +580,7 @@ form:Hide()
 local cancelledOwn = ns.Events.Get(adopted.key)
 H.check(cancelledOwn ~= nil and cancelledOwn.x, "a cancelled event of the organizer's")
 organizer.inClick = true
-H.check(ns.Calendar.RestoreFirst(adopted.key), "restoring it sends it to the calendar first")
+H.check(ns.Calendar.Restore(adopted.key), "restoring it sends it to the calendar first")
 organizer.inClick = false
 H.check(ns.Events.Get(adopted.key).x and ns.Calendar.Restoring(adopted.key), "still cancelled while the calendar answers")
 world:RunFor(5)
@@ -602,7 +599,7 @@ local under = Titled("Under the limit")
 H.check(under ~= nil and under.ci ~= 0 and world.calendar.events[under.ci].title == "Under the limit" and not form:IsShown(),
     "a new event comes into the addon once the calendar has it, linked, and the form closes")
 organizer.inClick = true
-H.check(ns.Calendar.RestoreFirst(adopted.key), "restoring under the limit")
+H.check(ns.Calendar.Restore(adopted.key), "restoring under the limit")
 organizer.inClick = false
 world:RunFor(5)
 local restoredNow = ns.Events.Get(adopted.key)
@@ -622,3 +619,64 @@ H.eq(ns.Calendar.SendBlocked(), ("You have reached your limit of %d events creat
 organizer.eventLimit = nil
 Errors("the game's limit")
 
+H.section("Calendar: a change the game takes back is not lost")
+ns.EventForm.Frame():Hide()
+local kept = ns.Events.Get(adopted.key)
+local keptID = kept.ci
+H.check(ns.Events.Change(kept.key, { ty = kept.ty, ti = "Zul'Gurub (late)", tm = kept.tm, ml = 0 }),
+    "a change with no click")
+world:RunFor(20)
+local updateEvent = organizer.env.C_Calendar.UpdateEvent
+organizer.env.C_Calendar.UpdateEvent = function()
+    error("the game refused it")
+end
+ClickSomewhere(organizer)
+organizer.env.C_Calendar.UpdateEvent = updateEvent
+H.eq(world.calendar.events[keptID].title, "Zul'Gurub", "the click's call fails: the calendar keeps its title")
+world:RunFor(30)
+H.eq(ns.Events.Get(kept.key).ti, "Zul'Gurub (late)", "the addon keeps the change, not the calendar's old title")
+ClickSomewhere(organizer)
+world:RunFor(10)
+H.eq(world.calendar.events[keptID].title, "Zul'Gurub (late)", "the next click puts it in")
+world.errors = {}
+
+H.section("Calendar: deletions the game takes only in a click")
+local function CopiesOf(event)
+    local count = 0
+    for _, other in ipairs(CalendarEvents()) do
+        if other.id ~= event.ci and other.title == event.ti and ns.Events.Naive(other.start.year, other.start.month,
+                other.start.day, other.start.hour, other.start.minute) == event.tm then
+            count = count + 1
+        end
+    end
+    return count
+end
+kept = ns.Events.Get(adopted.key)
+world.restrictRemove = true
+world:WindowCreate(organizer, { title = kept.ti, at = kept.tm, type = kept.ty })
+world:RunFor(30)
+H.eq(CopiesOf(kept), 1, "a copy the game does not let go with no click stays")
+ClickSomewhere(organizer)
+world:RunFor(10)
+H.eq(CopiesOf(kept), 0, "the next click deletes it")
+world.restrictRemove = nil
+world:WindowCreate(organizer, { title = kept.ti, at = kept.tm, type = kept.ty })
+world:RunFor(30)
+H.eq(CopiesOf(kept), 0, "and with the game letting it, the next copy goes with no click again")
+H.check(ns.Events.Get(kept.key).ci == keptID and not world.calendar.events[keptID].deleted, "the event itself stays")
+world.errors = {}
+
+H.section("Calendar: the window is told only what changed")
+world:RunFor(150)
+local told = 0
+ns.On("CalendarPending", function()
+    told = told + 1
+end)
+world:RunFor(60)
+H.check(told <= 1, ("a quiet minute (six looks at the calendar) tells the window almost nothing (%d)"):format(told))
+ns.Events.Change(kept.key, { ty = kept.ty, ti = "Zul'Gurub (later)", tm = kept.tm, ml = 0 })
+world:RunFor(15)
+H.check(told >= 1 and ns.Calendar.Pending()[1] ~= nil, "a change waiting for a click is told")
+ClickSomewhere(organizer)
+world:RunFor(10)
+Errors("the window told")

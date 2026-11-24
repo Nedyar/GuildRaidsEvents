@@ -520,8 +520,16 @@ return function(H)
                 local event = EventAt(offset, day, index)
                 return event ~= nil and event.creator == client.guid and open ~= nil and open.id == event.id
             end,
+            -- world.restrictRemove: refused outside a click, as the game
+            -- did once (the addon then waits for a click to delete).
             ContextMenuEventRemove = function()
-                Log("ContextMenuEventRemove")
+                if world.restrictRemove then
+                    if not Restricted("ContextMenuEventRemove") then
+                        return
+                    end
+                else
+                    Log("ContextMenuEventRemove")
+                end
                 local event = selected and calendar.events[selected]
                 if not open or open.id ~= selected then
                     world:Schedule(0.2, function()

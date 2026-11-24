@@ -268,20 +268,27 @@ function UI.DateText(naive)
     return ("%s, %s"):format(UI.DayText(naive), UI.HourText(naive))
 end
 
--- A button of the addon's window. Unless restricted is set (the button
--- calls the calendar itself), its click first lets a change of the
--- player's events reach the game's calendar (Calendar.OnClick).
+-- Every click in the addon's window goes through this: the game's calendar
+-- takes a change only first thing in a click of the player, so the click
+-- first lets a change of the player's events reach it (Calendar.OnClick),
+-- then runs handler. A handler that calls the calendar itself (restricted:
+-- Create, Save, Cancel event, Create in calendar) is not wrapped: it calls
+-- the calendar first, and Calendar.OnClick itself when it does not.
+function UI.Clicked(handler)
+    return function(...)
+        ns.Calendar.OnClick()
+        return handler(...)
+    end
+end
+
+-- A button of the addon's window, its click through UI.Clicked unless
+-- restricted.
 function UI.Button(parent, text, onClick, restricted)
     local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
     button:SetText(text)
     button:SetSize(math.max(button:GetTextWidth() + 28, 80), 22)
     button:SetMotionScriptsWhileDisabled(true)
-    button:SetScript("OnClick", function(self, ...)
-        if not restricted then
-            ns.Calendar.OnClick()
-        end
-        onClick(self, ...)
-    end)
+    button:SetScript("OnClick", restricted and onClick or UI.Clicked(onClick))
     return button
 end
 
@@ -380,8 +387,7 @@ function UI.Clear(events)
     end
     for _, event in ipairs(events) do
         if event.x and event.owner == ns.playerGUID then
-            ns.Calendar.Forget(event.key, event)
-            Events.Delete(event.key)
+            ns.Calendar.Delete(event.key)
         elseif event.x then
             cleared[event.key] = event.tm
         end

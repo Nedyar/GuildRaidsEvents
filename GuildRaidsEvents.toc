@@ -36,6 +36,11 @@ Rights.lua
 Events.lua
 States.lua
 Calendar.lua
+CalendarRead.lua
+CalendarSend.lua
+CalendarOrganizer.lua
+CalendarMember.lua
+CalendarStatuses.lua
 Reminders.lua
 API.lua
 UI.lua
