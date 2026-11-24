@@ -20,7 +20,7 @@ local Events, States, UI = ns.Events, ns.States, ns.UI
 local COLUMN_WIDTH, COLUMN_GAP = 178, 8
 local NAME_HEIGHT = 16
 local MAX_NAMES = 7     -- names shown in a column; the rest as "+N more"
-local NOTE_LETTERS = 60
+local NOTE_LETTERS = ns.Pack.LIMITS.noteLetters
 local COLUMN_ORDER = { confirmed = 1, signed = 2, tentative = 3, standby = 4 }
 
 local view       -- the frame

@@ -253,6 +253,21 @@ H.check(guild.members[solo.guid].pe[eventKey] ~= nil and Events.Get(eventKey).ti
 H.check(Events.Answer(created, Events.TENTATIVE, Events.HEALER, "  maybe  "), "answering")
 local mine = Events.Mine(Events.Get(created))
 H.check(mine and mine.st == Events.TENTATIVE and mine.ro == Events.HEALER and mine.no == "maybe", "the answer, its note trimmed")
+-- The note's box takes 60 letters; with accents or ñ (2 bytes each in
+-- UTF-8) they are more than 60 bytes, and such a note was dropped.
+local longNote = ""
+for _ = 1, Pack.LIMITS.noteLetters / 5 do
+    longNote = longNote .. "ñáéí "
+end
+longNote = longNote:sub(1, -2) .. "ó"
+H.check(#longNote > 60 and select(2, longNote:gsub("[%z\1-\127\194-\244][\128-\191]*", "")) == Pack.LIMITS.noteLetters,
+    "a note of 60 letters with accents: more than 60 bytes")
+H.check(Events.Answer(created, Events.SIGNED, Events.DAMAGE, longNote), "answering with it")
+H.eq(Events.Mine(Events.Get(created)).no, longNote, "the whole note is kept")
+local noteOK, _, noteBack = pcall(Pack.ReadRecord, Pack.Reader(Pack.RecordString(solo.guid, guild.members[solo.guid])))
+H.check(noteOK and noteBack.su[created].no == longNote, "and reads back whole")
+H.check(Events.Answer(created, Events.SIGNED, Events.DAMAGE, longNote .. "ñññ"), "answering with a longer one (another addon, say)")
+H.eq(Events.Mine(Events.Get(created)).no, longNote, "it is cut to 60 letters, not dropped")
 H.check(Events.Answer(created, nil) and Events.Mine(Events.Get(created)) == nil, "taking it back")
 H.check(Events.SetStatus(created, member, Events.CONFIRMED), "giving a status in one's event")
 H.check(not Events.Create({ ty = 9, ti = "Bad", tm = Events.Now() + 86400 }), "an event with bad fields is not created")

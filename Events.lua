@@ -572,10 +572,7 @@ function Events.Answer(key, st, role, note)
         if not HasRoom(record.su, key, LIMITS.signUps) then
             return false
         end
-        note = note and strtrim(note) or nil
-        record.su[key] = {
-            st = st, ro = role, no = note ~= "" and ns.Data.CleanText(note, LIMITS.note) or nil, at = NextChange(old and old.at),
-        }
+        record.su[key] = { st = st, ro = role, no = ns.Data.CleanNote(note), at = NextChange(old and old.at) }
     else
         record.su[key] = nil
     end
@@ -626,10 +623,7 @@ function Events.SetExternal(key, guid, st, role, note)
     record.xs[key] = record.xs[key] or {}
     local old = record.xs[key][guid]
     if st then
-        note = note and strtrim(note) or nil
-        record.xs[key][guid] = {
-            st = st, ro = role, no = note ~= "" and ns.Data.CleanText(note, LIMITS.note) or nil, at = NextChange(old and old.at),
-        }
+        record.xs[key][guid] = { st = st, ro = role, no = ns.Data.CleanNote(note), at = NextChange(old and old.at) }
     else
         record.xs[key][guid] = nil
         if not next(record.xs[key]) then

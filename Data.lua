@@ -40,6 +40,30 @@ local function CleanText(text, max, lines)
 end
 Data.CleanText = CleanText
 
+-- A text cut to its first letters (UTF-8 characters, not bytes).
+function Data.CutLetters(text, letters)
+    local count, cut = 0, #text
+    for start in text:gmatch("()[%z\1-\127\194-\244][\128-\191]*") do
+        count = count + 1
+        if count > letters then
+            cut = start - 1
+            break
+        end
+    end
+    return text:sub(1, cut)
+end
+
+-- A sign-up's note as the record keeps it: trimmed, at most
+-- LIMITS.noteLetters letters (a longer one is cut); nil when empty or
+-- holding what the game does not let players type.
+function Data.CleanNote(note)
+    note = type(note) == "string" and note:match("^%s*(.-)%s*$") or ""
+    if note == "" then
+        return nil
+    end
+    return CleanText(Data.CutLetters(note, LIMITS.noteLetters), LIMITS.note)
+end
+
 function Data.IsID(id)
     return type(id) == "string" and #id >= 1 and #id <= LIMITS.id and id:find("^[%w]+$") ~= nil
 end
