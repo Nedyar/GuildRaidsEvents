@@ -35,6 +35,7 @@ Data.lua
 Rights.lua
 Events.lua
 States.lua
+Roles.lua
 Calendar.lua
 CalendarRead.lua
 CalendarSend.lua

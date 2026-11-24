@@ -26,14 +26,9 @@ local COLUMN_ORDER = { confirmed = 1, signed = 2, tentative = 3, standby = 4 }
 local view       -- the frame
 local shownKey   -- the event shown
 
-local LastRole = Events.LastRole
-
-local function SetLastRole(role)
-    if ns.playerGUID and ns.db then
-        ns.Data.OwnState().role = role
-    end
-end
-
+-- The role for the event shown: the player's sign-up's, or the one picked
+-- in the menu; else their default role (Roles.lua).
+local Roles = ns.Roles
 local selectedRole
 
 -- A sign-up's tooltip: its answer, status, note, and where it was made.
@@ -165,7 +160,7 @@ local function SetOwnState(state)
         return
     end
     local note = strtrim(view.Note:GetText() or "")
-    States.SetMine(event.key, state, selectedRole or LastRole(), note, event.owner == ns.playerGUID)
+    States.SetMine(event.key, state, selectedRole or Roles.Default(), note, event.owner == ns.playerGUID)
 end
 
 local function CreateControls()
@@ -179,10 +174,10 @@ local function CreateControls()
     view.Role:SetupMenu(function(_, root)
         for role = Events.TANK, Events.DAMAGE do
             root:CreateRadio(UI.RoleName(role), function()
-                return (selectedRole or LastRole()) == role
+                return (selectedRole or Roles.Default()) == role
             end, function()
                 selectedRole = role
-                SetLastRole(role)
+                Roles.Remember(role)
                 EventView.UpdateControls()
             end)
         end
@@ -479,7 +474,7 @@ function EventView.UpdateControls(signUps)
     elseif not UI.MeetsLevel(event) then
         reason = L["This event is for level %d or higher."]:format(event.ml)
     end
-    local role = selectedRole or LastRole()
+    local role = selectedRole or Roles.Default()
     local note = strtrim(view.Note:GetText() or "")
     local same = mine ~= nil and mine.ro == role and (mine.no or "") == note
     local hidden = not organizer and state == "none" and ns.Calendar.HiddenFromMe(event)

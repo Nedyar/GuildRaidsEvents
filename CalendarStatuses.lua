@@ -36,7 +36,7 @@ local function TakeOwnStatus(key, event, status)
     local state = States.FromCalendar(status)
     local mine = Events.Mine(event)
     if state then
-        States.SetMine(key, state, mine and mine.ro or Events.LastRole(), mine and mine.no, true)
+        States.SetMine(key, state, mine and mine.ro or ns.Roles.Default(), mine and mine.no, true)
     end
 end
 

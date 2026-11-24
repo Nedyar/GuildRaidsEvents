@@ -349,6 +349,30 @@ H.eq(#Titled("Far raid"), 1, "an event not weekly is alone")
 H.check(Events.Change(farKey, { ty = 0, ti = "Far raid", tm = Events.Now() + 20 * 86400, ml = 0, wk = true })
     and #Titled("Far raid") == 2, "made weekly when changed: next week's at once")
 
+H.section("Roles: the default role, from the class and the specialization")
+local roleWorld = H.NewWorld({ seed = 5 })
+-- A druid: Feral (the second tree) in the first spec group, Restoration in the second.
+local druid = roleWorld:NewClient("Druid Name", { rank = "Guild Master", rankIndex = 0, classID = 11, talents = {
+    active = 1, groups = { [1] = { [201] = 5, [202] = 5, [101] = 3 }, [2] = { [301] = 5, [302] = 4 } } } })
+local priest = roleWorld:NewClient("Priest Name", { rank = "Member", rankIndex = 3, classID = 5 })
+roleWorld:Login(druid)
+roleWorld:Login(priest)
+roleWorld:RunFor(30)
+local Roles, DE = druid.ns.Roles, druid.ns.Events
+H.eq(Roles.ActiveTree(), 2, "the specialization: the tree with the most points of the active spec group")
+H.eq(Roles.Default(), DE.TANK, "a feral druid tanks by default")
+local druidKey = DE.Create({ ty = 0, ti = "Onyxia", tm = DE.Now() + 86400, ml = 0 })
+H.eq(DE.Mine(DE.Get(druidKey)).ro, DE.TANK, "and organizes as a tank")
+druid.talents.active = 2
+H.eq(Roles.Default(), DE.HEALER, "with the other spec group, Restoration: a healer")
+Roles.Remember(DE.DAMAGE)
+H.eq(Roles.Default(), DE.DAMAGE, "the role chosen last is the default with that specialization")
+druid.talents.active = 1
+H.eq(Roles.Default(), DE.TANK, "and only with that one")
+H.eq(priest.ns.Roles.ActiveTree(), nil, "no point spent: no specialization")
+H.eq(priest.ns.Roles.Default(), DE.DAMAGE, "and damage by default")
+H.eq(#roleWorld.errors, 0, "no errors working the role out")
+
 H.section("States: one state, in the data and in the calendar")
 local States, CS = ns.States, solo.env.Enum.CalendarStatus
 local function MergeOf(answerSt, answerAt, statusSt, statusAt)

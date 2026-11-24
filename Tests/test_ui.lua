@@ -101,6 +101,7 @@ H.Click(view.SignUp)
 world:RunFor(30)
 local mine = member.ns.Events.Mine(member.ns.Events.Get(key))
 H.check(mine and mine.st == 1 and mine.ro == 2 and mine.no == "late 10 min", "Sign up, as healer, with the note")
+H.eq(member.ns.Roles.Default(), 2, "the role picked is their default from now on, with that specialization")
 member.ns.EventView.Refresh()
 H.check(view.Columns[2].Names[1]:IsShown() and view.Columns[2].Names[1].Text:GetText():find("Member Name", 1, true),
     "the member shows in the healers' column")

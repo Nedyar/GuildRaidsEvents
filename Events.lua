@@ -414,21 +414,15 @@ local function Fields(fields, at, cancelled)
     return ns.Data.CleanFields(copy)
 end
 
--- The role the player signs up with: the one they chose last (this
--- character's own, OwnState().role), damage at first.
-function Events.LastRole()
-    local own = ns.playerGUID and ns.db and ns.Data.OwnState()
-    return own and own.role or Events.DAMAGE
-end
-
 -- The organizer of a new event is signed up and confirmed in it, as the
--- game's calendar does with its creator; they may answer otherwise later.
+-- game's calendar does with its creator, with their default role
+-- (Roles.lua); they may answer otherwise later.
 local function SignUpOrganizer(record, key, at)
     if not HasRoom(record.su, key, LIMITS.signUps) or not HasRoom(record.ms, key, LIMITS.statusEvents) then
         return
     end
     record.su = record.su or {}
-    record.su[key] = { st = Events.SIGNED, ro = Events.LastRole(), at = at }
+    record.su[key] = { st = Events.SIGNED, ro = ns.Roles.Default(), at = at }
     record.ms = record.ms or {}
     record.ms[key] = record.ms[key] or {}
     record.ms[key][ns.playerGUID] = { st = Events.CONFIRMED, at = at }

@@ -16,8 +16,11 @@ linked to the game's calendar.
   (in the game calendar's colours: signed up and confirmed in green, standby
   and tentative in orange): confirmed
   first, then signed up, tentative and on standby. Point at a name for its
-  note. Those left out are listed under the columns. Choose your role,
-  write a short note if you like, and answer **Signed up** or
+  note. Those left out are listed under the columns. Choose your role (at
+  first the one your class and specialization stand for, the talent tree
+  with the most points of your active spec group, a Feral druid tanking;
+  then the one you chose last with that specialization), write a short
+  note if you like, and answer **Signed up** or
   **Tentative**, or **Remove sign-up**: the same answers as in the game's
   calendar, by its rules: signed up in any way, you only remove your
   sign-up (your role and note you change at any time), and the event then
@@ -123,7 +126,7 @@ characters' clients add them by the name of the guild member who signed up.
 | `GuildRaidsEvents.IsBridgeCharacter()` | Whether the current character may bring sign-ups in |
 | `GuildRaidsEvents.GetEvents(which)` | `"upcoming"` (the default), `"past"` or `"all"`: a list of events |
 | `GuildRaidsEvents.GetEvent(key)` | One event, or nil |
-| `GuildRaidsEvents.SetExternalSignUp(key, characterName, status, role, note)` | Brings in a sign-up: status `"signedUp"`, `"tentative"`, `"declined"`, or nil to take it back; role `"tank"`, `"healer"` or `"damage"`. Returns true, or false and why: `"notReady"`, `"notBridge"`, `"noEvent"`, `"locked"` (the event takes no answers), `"notMember"`, `"badStatus"`, `"badRole"` |
+| `GuildRaidsEvents.SetExternalSignUp(key, characterName, status, role, note)` | Brings in a sign-up: status `"signedUp"`, `"tentative"`, `"declined"`, or nil to take it back; role `"tank"`, `"healer"` or `"damage"`. Returns true, or false and why: `"notReady"`, `"notBridge"`, `"noEvent"`, `"locked"` (the event takes no answers), `"notMember"`, `"badStatus"`, `"badRole"`, `"full"` (this character holds as many as its record can) |
 | `GuildRaidsEvents.OnChange(callback)` | Calls `callback()` whenever the events change |
 
 An event is `{ key, title, type, start, startUnix, description, organizer,

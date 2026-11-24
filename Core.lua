@@ -109,6 +109,10 @@ local function PrintStatus()
     if ns.Calendar.lastError then
         ns.Print("calendar: %s", ns.Calendar.lastError)
     end
+    -- The default role, and the talent tree it comes from (Roles.lua).
+    local tree, treeName = ns.Roles.ActiveTree()
+    ns.Print("role: tree %s (%s), from the specialization %s, default %s", tostring(tree), tostring(treeName),
+        ns.UI.RoleName(ns.Roles.OfSpec()), ns.UI.RoleName(ns.Roles.Default()))
     ns.Print(L["sync: %s"], ns.Sync.Describe())
 end
 

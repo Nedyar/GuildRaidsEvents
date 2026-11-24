@@ -28,7 +28,7 @@ end
 -- "none"), into the addon, as the player's own.
 local function TakeAnswer(key, event, has)
     local mine = Events.Mine(event)
-    States.SetMine(key, has, mine and mine.ro or Events.LastRole(), mine and mine.no, false)
+    States.SetMine(key, has, mine and mine.ro or ns.Roles.Default(), mine and mine.no, false)
     Note("from the calendar", "took your answer given there: " .. event.ti)
 end
 
