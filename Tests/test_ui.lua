@@ -101,6 +101,7 @@ H.check(view.SignUp:IsShown() and view.Tentative:IsShown() and view.Role:IsShown
     and not view.Remove:IsShown(), "not signed up: their role, a note, Sign up and Tentative, nothing else")
 H.check(view.SignUp._point[2] == view.Tentative and view.Tentative._point[1] == "BOTTOMRIGHT",
     "the buttons on the right")
+H.check(view.Note._point[1] == "RIGHT" and view.Note._point[2] == view.SignUp, "the note's box as wide as there is room, up to them")
 member.level = 60
 member.ns.EventView.Refresh()
 H.check(view.SignUp:IsEnabled(), "at the level, they can")

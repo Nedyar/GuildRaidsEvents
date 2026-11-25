@@ -420,7 +420,7 @@ local function CreateControls()
     view.NoteLabel:SetPoint("BOTTOMLEFT", view.RoleLabel, "BOTTOMLEFT", 132, 0)
     view.NoteLabel:SetText(L["Note"])
     view.Note = CreateFrame("EditBox", nil, view, "InputBoxTemplate")
-    view.Note:SetSize(100, 20)
+    view.Note:SetHeight(20)
     view.Note:SetPoint("BOTTOMLEFT", 138, 8)
     view.Note:SetAutoFocus(false)
     view.Note:SetMaxLetters(NOTE_LETTERS)
@@ -442,6 +442,9 @@ local function CreateControls()
     view.Tentative:SetPoint("BOTTOMRIGHT", -4, 7)
     view.SignUp = StateButton("signed")
     view.SignUp:SetPoint("RIGHT", view.Tentative, "LEFT", -4, 0)
+    -- The note's box as wide as there is room, up to the buttons (its
+    -- template's border reaches 5 pixels past it).
+    view.Note:SetPoint("RIGHT", view.SignUp, "LEFT", -12, 0)
     view.Remove = StateButton("none", L["Remove sign-up"])
     view.Remove:SetPoint("BOTTOM", 0, 7)
 end
