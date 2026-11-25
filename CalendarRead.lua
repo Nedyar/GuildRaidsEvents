@@ -156,6 +156,15 @@ function Calendar.HiddenFromMe(event)
         and Read.GuildEntry(event.ci) ~= nil
 end
 
+-- Whether the player's own calendar still has them signed up in one of the
+-- guild's events (in any way) while the addon no longer does: their sign-up
+-- taken back a moment ago, not taken back there yet. They sign up again
+-- only once it is (and the event shows again, Calendar.HiddenFromMe).
+function Calendar.StillSignedThere(event)
+    local entry = Read.scanned and event.ci ~= 0 and found[event.ci] or nil
+    return entry ~= nil and ns.States.CalendarAnswer(Plain(entry.ev.inviteStatus)) ~= "none"
+end
+
 -- The calendar IDs our events are linked to (those deleted too, until
 -- their organizer's record lets them go).
 function Read.UsedIDs()

@@ -699,6 +699,9 @@ function EventView.UpdateControls(signUps)
     if signing then
         if not reason and not UI.MeetsLevel(event) then
             reason = L["This event is for level %d or higher."]:format(event.ml)
+        elseif not reason and ns.Calendar.StillSignedThere(event) then
+            -- Taken back a moment ago: not in the game's calendar yet.
+            reason = L["Syncing the calendar..."]
         elseif not reason and ns.Calendar.HiddenFromMe(event) then
             reason = L["Wait for the event to show again in your calendar (about an hour after removing your sign-up, or when you log in again)."]
         end

@@ -91,9 +91,10 @@ local function WindowSignature()
         "v" .. tostring(UnitLevel("player")),
     }
     for key, event in pairs(Events.All()) do
-        parts[#parts + 1] = ("k%s|%s|%s|%s|%s|%s"):format(key, tostring(Calendar.Unsent(event)),
-            tostring(Calendar.HiddenFromMe(event)), tostring(Calendar.Deleting(key)),
-            tostring(Events.IsUpcoming(event, now)), tostring(event.tm + Events.KEEP > now))
+        parts[#parts + 1] = ("k%s|%s|%s|%s|%s|%s|%s"):format(key, tostring(Calendar.Unsent(event)),
+            tostring(Calendar.HiddenFromMe(event)), tostring(Calendar.StillSignedThere(event)),
+            tostring(Calendar.Deleting(key)), tostring(Events.IsUpcoming(event, now)),
+            tostring(event.tm + Events.KEEP > now))
     end
     table.sort(parts)
     return table.concat(parts, ",")

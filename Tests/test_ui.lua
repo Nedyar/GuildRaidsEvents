@@ -289,6 +289,10 @@ member.ns.EventView.Open(key)
 H.check(view.Remove:IsShown() and view.Remove:IsEnabled() and not view.SignUp:IsShown(),
     "made tentative, the member only removes their sign-up, as in the game")
 H.Click(view.Remove)
+member.ns.EventView.Refresh()
+H.check(view.SignUp:IsShown() and not view.SignUp:IsEnabled() and not view.Tentative:IsEnabled()
+    and view.SignUp.reason == "Syncing the calendar...",
+    "right after removing it, not signing up again while the game's calendar still has it")
 world:RunFor(30)
 H.eq(MineOf(member), nil, "removed")
 H.check(member.ns.Calendar.HiddenFromMe(member.ns.Events.Get(key)), "the event left the member's calendar, as the game does")
