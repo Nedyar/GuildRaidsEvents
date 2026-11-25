@@ -88,6 +88,18 @@ member.ns.EventList.InitRow(row, list.elements[1])
 H.check(not row.Mark:IsShown(), "the tab opened again, it is new no more")
 
 H.section("UI: an event")
+-- A column's names as its list shows them: a frame for each, made by the
+-- column's own initializer (the test world makes none by itself).
+local function Names(someView, role)
+    local column = someView.Columns[role]
+    local frames = {}
+    for _, element in ipairs(column.ScrollBox._provider and column.ScrollBox._provider.elements or {}) do
+        local frame = H.NewObject(someView._client, "Button")
+        column.ScrollBox._view.init(frame, element)
+        frames[#frames + 1] = frame
+    end
+    return frames
+end
 member.ns.EventView.Open(key)
 world:RunFor(1)
 local view = memberPage.View
@@ -114,14 +126,14 @@ local mine = member.ns.Events.Mine(member.ns.Events.Get(key))
 H.check(mine and mine.st == 1 and mine.ro == 2 and mine.no == "late 10 min", "Sign up, as healer, with the note")
 H.eq(member.ns.Roles.Default(), 2, "the role picked is their default from now on, with that specialization")
 member.ns.EventView.Refresh()
-H.check(view.Columns[2].Names[1]:IsShown() and view.Columns[2].Names[1].Text:GetText():find("Member Name", 1, true),
+H.check(Names(view, 2)[1]:IsShown() and Names(view, 2)[1].Text:GetText():find("Member Name", 1, true),
     "the member shows in the healers' column")
-H.check(view.Columns[2].Names[1].Text:GetText():find("(Signed up)", 1, true) ~= nil,
+H.check(Names(view, 2)[1].Text:GetText():find("(Signed up)", 1, true) ~= nil,
     "with their state by the name, signed up too, as every other state")
 H.check(view.Remove:IsShown() and not view.SignUp:IsShown() and not view.Role:IsShown() and not view.Note:IsShown(),
     "signed up: only Remove sign-up under the columns")
 H.check(view.Remove._point[1] == "BOTTOM", "in the middle")
-local nameButton = view.Columns[2].Names[1]
+local nameButton = Names(view, 2)[1]
 nameButton:GetScript("OnEnter")(nameButton)
 local tipLines = member.env.GameTooltip._lines
 local function HasLine(lines, text)
@@ -155,6 +167,7 @@ tooltip.AddLine = function(self, text, r, g, b, wrap)
 end
 member.ns.Events.Answer(key, 1, 2, digits)
 member.ns.EventView.Refresh()
+nameButton = Names(view, 2)[1]
 nameButton:GetScript("OnEnter")(nameButton)
 tooltip.AddLine = addLine
 H.check(HasLine(tooltip._lines, digits) and not wrapped[digits],
@@ -171,7 +184,7 @@ local orgView = page.View
 H.check(orgView.Edit:IsShown() and orgView.Delete:IsShown(), "the organizer may change and delete it")
 H.check(orgView.Delete:GetText() == "Delete event" and orgView.Delete._point[2] == orgView.Back
     and orgView.Edit._point[2] == orgView.Delete, "Delete event left of Back, Edit left of it")
-local healer = orgView.Columns[2].Names[1]
+local healer = Names(orgView, 2)[1]
 H.check(healer.signUp ~= nil and healer.signUp.guid == member.guid, "the member's sign-up is in the healers' column")
 organizer.contextMenu = nil
 H.Click(healer)
@@ -190,7 +203,7 @@ H.MenuEntry(menu, "Set moderator").callback()
 world:RunFor(30)
 H.check(member.ns.Rights.MayIManage(member.ns.Events.Get(key)), "named: the member manages the event")
 ns.EventView.Refresh()
-H.check(orgView.Columns[2].Names[1].Text:GetText():find("UI-Group-AssistantIcon", 1, true) ~= nil,
+H.check(Names(orgView, 2)[1].Text:GetText():find("UI-Group-AssistantIcon", 1, true) ~= nil,
     "marked as the game's calendar marks its moderators")
 H.Click(healer, "RightButton")
 H.MenuEntry(organizer.contextMenu, "Clear moderator").callback()
@@ -200,8 +213,8 @@ H.check(ns.Events.SetStatus(key, member.guid, ns.Events.OUT), "the organizer lea
 world:RunFor(1)
 ns.EventView.Refresh()
 local inColumns = false
-for _, column in ipairs(orgView.Columns) do
-    for _, name in ipairs(column.Names) do
+for role in ipairs(orgView.Columns) do
+    for _, name in ipairs(Names(orgView, role)) do
         if name:IsShown() and name.signUp and name.signUp.guid == member.guid then
             inColumns = true
         end
@@ -230,8 +243,8 @@ end
 local function OwnStatus(status)
     ns.EventView.Refresh()
     organizer.contextMenu = nil
-    for _, column in ipairs(orgView.Columns) do
-        for _, name in ipairs(column.Names) do
+    for role in ipairs(orgView.Columns) do
+        for _, name in ipairs(Names(orgView, role)) do
             if name:IsShown() and name.signUp and name.signUp.guid == organizer.guid then
                 H.Click(name, "RightButton")
             end
@@ -245,7 +258,7 @@ local function OwnStatus(status)
     ns.EventView.Refresh()
 end
 local function DamageName(guid)
-    for _, name in ipairs(orgView.Columns[3].Names) do
+    for _, name in ipairs(Names(orgView, 3)) do
         if name:IsShown() and name.signUp and name.signUp.guid == guid then
             return name
         end
@@ -264,7 +277,7 @@ local own = MineOf(organizer)
 H.check(own.st == 1 and own.status == 1 and ns.States.Goes(own), "then Confirmed: signed up and confirmed")
 H.check(DamageName(organizer.guid) ~= nil, "back in their role's column")
 organizer.contextMenu = nil
-for _, name in ipairs(orgView.Columns[2].Names) do
+for _, name in ipairs(Names(orgView, 2)) do
     if name:IsShown() and name.signUp and name.signUp.guid == member.guid then
         H.Click(name, "RightButton")
     end
@@ -549,7 +562,7 @@ Errors("weekly events")
 
 H.section("UI: roles changed from the list")
 local function NameIn(someView, role, guid)
-    for _, name in ipairs(someView.Columns[role].Names) do
+    for _, name in ipairs(Names(someView, role)) do
         if name:IsShown() and name.signUp and name.signUp.guid == guid then
             return name
         end
@@ -727,6 +740,33 @@ H.check(view.SignUp:IsShown() and view.Tentative:IsShown() and not view.Remove:I
 member.ns.EventView.Close()
 ns.EventView.Close()
 Errors("a moderator's status and notes")
+
+H.section("UI: a long column scrolls")
+local manyGuild = ns.Data.CurrentGuild(false)
+local many = {}
+for i = 1, 10 do
+    local guid = ("Player-1-0000F%03d"):format(i)
+    many[#many + 1] = guid
+    manyGuild.members[guid] = { t = ns.Now(), av = 100, su = { [scholo.key] = { st = 1, ro = 1, at = ns.Now() + i } } }
+end
+ns.Events.Invalidate()
+ns.EventView.Open(scholo.key)
+local tanks = Names(orgView, 1)
+local listed = {}
+for _, name in ipairs(tanks) do
+    listed[name.signUp.guid] = true
+end
+local all = true
+for _, guid in ipairs(many) do
+    all = all and listed[guid] == true
+end
+H.check(#tanks >= 10 and all, "every tank is in its column's list, which scrolls when they are more than it shows")
+for _, guid in ipairs(many) do
+    manyGuild.members[guid] = nil
+end
+ns.Events.Invalidate()
+ns.EventView.Close()
+Errors("a long column")
 
 H.section("UI: the game's limit of events created")
 local madeByOrganizer = 0

@@ -65,7 +65,6 @@ ns.RegisterLocale("ruRU", function(L)
     L["Confirms sign-ups automatically"] = "Подтверждает записи автоматически"
     L["The organizer confirms"] = "Подтверждает организатор"
     L["nobody"] = "никто"
-    L["+%d more"] = "ещё +%d"
     L["This event is over."] = "Это событие уже прошло."
     L["This event is for level %d or higher."] = "Это событие для уровня %d и выше."
     L["Give the event a title."] = "Дайте событию название."

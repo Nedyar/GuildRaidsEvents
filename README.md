@@ -14,7 +14,8 @@ linked to the game's calendar.
   (in the game calendar's colours: signed up and confirmed in green, standby
   and tentative in orange): confirmed
   first, then signed up, tentative and on standby; each column's count, as
-  the rows', counts those signed up or confirmed. Point at a name for its
+  the rows', counts those signed up or confirmed; a column scrolls when they
+  are more than it shows. Point at a name for its
   note. Those left out are listed under the columns.
   Under the columns, only signing up: not signed up, choose your role (at
   first the one your class and specialization stand for, the talent tree

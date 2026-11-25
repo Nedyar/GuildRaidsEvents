@@ -65,7 +65,6 @@ ns.RegisterLocale("zhTW", function(L)
     L["Confirms sign-ups automatically"] = "自動確認報名"
     L["The organizer confirms"] = "由組織者確認"
     L["nobody"] = "無人"
-    L["+%d more"] = "還有 +%d"
     L["This event is over."] = "此活動已結束。"
     L["This event is for level %d or higher."] = "此活動需要等級 %d 或以上。"
     L["Give the event a title."] = "請為活動填寫標題。"

@@ -22,7 +22,7 @@ local Events, States, UI = ns.Events, ns.States, ns.UI
 
 local COLUMN_WIDTH, COLUMN_GAP = 178, 8
 local NAME_HEIGHT = 16
-local MAX_NAMES = 7     -- names shown in a column; the rest as "+N more"
+local VISIBLE_NAMES = 7 -- names a column shows at once; the rest when it scrolls
 local NOTE_LETTERS = ns.Pack.LIMITS.noteLetters
 local COLUMN_ORDER = { confirmed = 1, signed = 2, tentative = 3, standby = 4 }
 -- The game calendar's marks of an event's creator and its moderators.
@@ -264,43 +264,6 @@ function EventView.SortColumn(list)
     return list
 end
 
-local function CreateColumn(index)
-    local column = CreateFrame("Frame", nil, view)
-    column:SetSize(COLUMN_WIDTH, NAME_HEIGHT * (MAX_NAMES + 2))
-    column:SetPoint("TOPLEFT", view.Description, "BOTTOMLEFT", (index - 1) * (COLUMN_WIDTH + COLUMN_GAP), -10)
-    column.Background = column:CreateTexture(nil, "BACKGROUND")
-    column.Background:SetAllPoints()
-    column.Background:SetColorTexture(0, 0, 0, 0.25)
-    column.Header = column:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    column.Header:SetPoint("TOPLEFT", 6, -3)
-    column.Header:SetPoint("RIGHT", -6, 0)
-    column.Header:SetJustifyH("LEFT")
-    column.Names = {}
-    for row = 1, MAX_NAMES do
-        local button = CreateFrame("Button", nil, column)
-        button:SetSize(COLUMN_WIDTH - 12, NAME_HEIGHT)
-        button:SetPoint("TOPLEFT", 6, -3 - row * NAME_HEIGHT)
-        button.Text = button:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-        button.Text:SetAllPoints()
-        button.Text:SetJustifyH("LEFT")
-        button.Text:SetWordWrap(false)
-        local highlight = button:CreateTexture(nil, "HIGHLIGHT")
-        highlight:SetAllPoints()
-        highlight:SetColorTexture(1, 1, 1, 0.08)
-        button:SetScript("OnEnter", NameOnEnter)
-        button:SetScript("OnLeave", GameTooltip_Hide)
-        button:RegisterForClicks("RightButtonUp")
-        button:SetScript("OnClick", NameOnClick)
-        button:RegisterForDrag("LeftButton")
-        button:SetScript("OnDragStart", NameOnDragStart)
-        button:SetScript("OnDragStop", NameOnDragStop)
-        column.Names[row] = button
-    end
-    column.More = column:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
-    column.More:SetPoint("TOPLEFT", 6, -3 - (MAX_NAMES + 1) * NAME_HEIGHT)
-    return column
-end
-
 -- A sign-up's line: its name in its class colour, with its one state (the
 -- member's answer or a status given), in the game's colour for it.
 local function NameText(signUp)
@@ -318,6 +281,59 @@ local function NameText(signUp)
         mark = mark .. " |cff888888*|r"
     end
     return name .. mark
+end
+
+-- A name in a column's list (element: { signUp }): its tooltip, its menu on
+-- a right-click, dragged to another column for another role.
+local function InitName(button, element)
+    if not button.Text then
+        button.Text = button:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+        button.Text:SetAllPoints()
+        button.Text:SetJustifyH("LEFT")
+        button.Text:SetWordWrap(false)
+        local highlight = button:CreateTexture(nil, "HIGHLIGHT")
+        highlight:SetAllPoints()
+        highlight:SetColorTexture(1, 1, 1, 0.08)
+        button:SetScript("OnEnter", NameOnEnter)
+        button:SetScript("OnLeave", GameTooltip_Hide)
+        button:RegisterForClicks("RightButtonUp")
+        button:SetScript("OnClick", NameOnClick)
+        button:RegisterForDrag("LeftButton")
+        button:SetScript("OnDragStart", NameOnDragStart)
+        button:SetScript("OnDragStop", NameOnDragStop)
+    end
+    button.signUp = element.signUp
+    button.Text:SetText(NameText(element.signUp))
+end
+
+local function CreateColumn(index)
+    local column = CreateFrame("Frame", nil, view)
+    column:SetSize(COLUMN_WIDTH, NAME_HEIGHT * (VISIBLE_NAMES + 2))
+    column:SetPoint("TOPLEFT", view.Description, "BOTTOMLEFT", (index - 1) * (COLUMN_WIDTH + COLUMN_GAP), -10)
+    column.Background = column:CreateTexture(nil, "BACKGROUND")
+    column.Background:SetAllPoints()
+    column.Background:SetColorTexture(0, 0, 0, 0.25)
+    column.Header = column:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    column.Header:SetPoint("TOPLEFT", 6, -3)
+    column.Header:SetPoint("RIGHT", -6, 0)
+    column.Header:SetJustifyH("LEFT")
+    -- Its names in a list that scrolls when they are more than it shows,
+    -- as the event list (EventList.lua); the scroll bar only then.
+    local scrollBox = CreateFrame("Frame", nil, column, "WowScrollBoxList")
+    scrollBox:SetPoint("TOPLEFT", 6, -3 - NAME_HEIGHT)
+    scrollBox:SetPoint("BOTTOMRIGHT", -16, 4)
+    local scrollBar = CreateFrame("EventFrame", nil, column, "MinimalScrollBar")
+    scrollBar:SetPoint("TOPLEFT", scrollBox, "TOPRIGHT", 4, 0)
+    scrollBar:SetPoint("BOTTOMLEFT", scrollBox, "BOTTOMRIGHT", 4, 0)
+    local names = CreateScrollBoxListLinearView(0, 0, 0, 0, 0)
+    names:SetElementExtent(NAME_HEIGHT)
+    names:SetElementInitializer("Button", InitName)
+    ScrollUtil.InitScrollBoxListWithScrollBar(scrollBox, scrollBar, names)
+    if ScrollUtil.AddManagedScrollBarVisibilityBehavior then
+        ScrollUtil.AddManagedScrollBarVisibilityBehavior(scrollBox, scrollBar)
+    end
+    column.ScrollBox, column.ScrollBar = scrollBox, scrollBar
+    return column
 end
 
 -- The player signs up (as tentative too), with the role and note chosen,
@@ -625,15 +641,12 @@ function EventView.Refresh()
         local places = event.sl and event.sl[Events.ROLE_FIELD[role]]
         column.Header:SetText(places and ("%s %d/%d"):format(UI.RolesName(role), counts[role], places)
             or ("%s %d"):format(UI.RolesName(role), counts[role]))
-        local list = byRole[role]
-        for row, button in ipairs(column.Names) do
-            local signUp = list[row]
-            button.signUp = signUp
-            button.Text:SetText(signUp and NameText(signUp) or "")
-            button:SetShown(signUp ~= nil)
+        local elements = {}
+        for _, signUp in ipairs(byRole[role]) do
+            elements[#elements + 1] = { signUp = signUp }
         end
-        local more = #list - MAX_NAMES
-        column.More:SetText(more > 0 and L["+%d more"]:format(more) or "")
+        column.ScrollBox:SetDataProvider(CreateDataProvider(elements),
+            ScrollBoxConstants and ScrollBoxConstants.RetainScrollPosition)
     end
     wipe(linked)
     view.Others:SetText(("%s: %s"):format(UI.StatusName(Events.OUT), Names(out, manager)))

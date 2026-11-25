@@ -65,7 +65,6 @@ ns.RegisterLocale("ptBR", function(L)
     L["Confirms sign-ups automatically"] = "Confirma inscrições automaticamente"
     L["The organizer confirms"] = "O organizador confirma"
     L["nobody"] = "ninguém"
-    L["+%d more"] = "+%d a mais"
     L["This event is over."] = "Este evento já terminou."
     L["This event is for level %d or higher."] = "Este evento é para nível %d ou mais."
     L["Give the event a title."] = "Dê um título ao evento."

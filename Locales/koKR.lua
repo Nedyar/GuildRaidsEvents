@@ -65,7 +65,6 @@ ns.RegisterLocale("koKR", function(L)
     L["Confirms sign-ups automatically"] = "참가 신청을 자동으로 확정"
     L["The organizer confirms"] = "주최자가 확정"
     L["nobody"] = "없음"
-    L["+%d more"] = "+%d명 더"
     L["This event is over."] = "이 일정은 끝났습니다."
     L["This event is for level %d or higher."] = "이 일정은 레벨 %d 이상만 참가할 수 있습니다."
     L["Give the event a title."] = "일정에 제목을 붙이세요."
