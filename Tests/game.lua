@@ -535,11 +535,14 @@ return function(H)
                     Broadcast(world, "CALENDAR_UPDATE_INVITE_LIST")
                 end
             end,
+            -- By its creator or a moderator (a moderator's, untested in the
+            -- game: as its window offers it in edit mode).
             EventSetInviteStatus = function(index, status)
                 Log("EventSetInviteStatus")
                 local event = open and open.id and calendar.events[open.id]
                 local entry = event and Invites(event)[index]
-                if entry and event.creator == client.guid then
+                local mine = event and event.invites[client.guid]
+                if entry and (event.creator == client.guid or mine and mine.modStatus == "MODERATOR") then
                     entry.invite.status = status
                     Broadcast(world, "CALENDAR_UPDATE_INVITE_LIST")
                 end

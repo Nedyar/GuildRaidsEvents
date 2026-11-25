@@ -731,3 +731,69 @@ end
 H.check(onyxia ~= nil and onyxia.sl ~= nil and onyxia.sl.t == 1 and onyxia.ci ~= 0 and not form:IsShown(),
     "a new event too: it comes in whole from the form, which closes")
 world.errors = {}
+
+H.section("Calendar: a moderator's client keeps the event in step while its organizer is away")
+ns.EventForm.Open(nil)
+form.TitleBox:SetText("Away raid")
+H.Click(form.Save)
+world:RunFor(10)
+local away
+for _, one in ipairs(ns.Events.List("upcoming")) do
+    if one.ti == "Away raid" then
+        away = one
+    end
+end
+H.check(away ~= nil and away.ci ~= 0, "an event in the calendar")
+local awayKey, awayID = away.key, away.ci
+local function AwayInvite(guid)
+    return world.calendar.events[awayID].invites[guid]
+end
+H.check(member.ns.Events.Answer(awayKey, 1, 2), "a member signs up")
+world:RunFor(60)
+H.check(ns.Events.SetModerator(awayKey, member.guid, true), "and is named a moderator")
+world:RunFor(30)
+H.eq(AwayInvite(member.guid).modStatus, "MODERATOR", "in the calendar too")
+world:Logout(organizer)
+world:WindowEdit(awayID, { title = "Away raid (moved)" })
+world:RunFor(20)
+H.eq(member.ns.Events.Get(awayKey).ti, "Away raid (moved)",
+    "the organizer away, a change made in the calendar window comes in through the moderator's client")
+world:RunFor(30)
+H.eq(second.ns.Events.Get(awayKey).ti, "Away raid (moved)", "for everyone")
+H.check(second.ns.Events.Answer(awayKey, 1, 1), "another member signs up")
+world:RunFor(60)
+H.check(member.ns.Events.SetStatus(awayKey, second.guid, 2), "the moderator puts them on standby")
+world:RunFor(30)
+H.eq(AwayInvite(second.guid).status, 5, "it reaches the calendar through the moderator's client")
+world:Login(organizer)
+world:RunFor(60)
+ns = organizer.ns
+H.eq(ns.Events.Get(awayKey).ti, "Away raid (moved)", "the organizer, back, has it all")
+world.errors = {}
+
+H.section("Calendar: a moderator who takes their sign-up back is one no more")
+H.check(member.ns.Rights.MayIManage(member.ns.Events.Get(awayKey)), "a moderator")
+H.check(member.ns.Events.Answer(awayKey, nil), "takes their sign-up back")
+world:RunFor(30)
+H.check(not member.ns.Rights.MayIManage(member.ns.Events.Get(awayKey)) and not ns.Events.Get(awayKey).md[member.guid],
+    "and is a moderator no more, for everyone")
+world:ShowHidden()
+H.check(member.ns.Events.Answer(awayKey, 1, 2), "signs up again")
+world:RunFor(320)
+H.check(AwayInvite(member.guid) ~= nil and AwayInvite(member.guid).modStatus ~= "MODERATOR"
+    and not member.ns.Rights.MayIManage(member.ns.Events.Get(awayKey)),
+    "and is not one again, in the addon or in the calendar, as in the game")
+world.errors = {}
+
+H.section("Calendar: only the organizer restores an event, made again in the calendar")
+H.check(ns.Events.SetModerator(awayKey, second.guid, true), "another moderator")
+world:RunFor(30)
+H.check(ns.Calendar.Cancel(awayKey), "the organizer cancels the event")
+world:RunFor(10)
+H.check(ns.Events.Get(awayKey).x and world.calendar.events[awayID].deleted, "gone from the calendar, cancelled")
+world:RunFor(20)
+H.check(not second.ns.Calendar.Restore(awayKey) and second.ns.Events.Get(awayKey).x,
+    "a moderator cannot restore it")
+H.eq(second.ns.Calendar.lastError, "Only its organizer can restore it: it is made again in the game's calendar.",
+    "and is told why")
+world.errors = {}

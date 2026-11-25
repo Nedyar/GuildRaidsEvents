@@ -1,8 +1,11 @@
--- CalendarOrganizer.lua: the organizer's client and their events in the
--- game's calendar (see Calendar.lua): new events linked to their calendar
--- event, each field kept in step both ways, events deleted or made in the
--- game's calendar window, copies of an event, and deleting calendar events
--- (no click needed, but only the open event can be deleted).
+-- CalendarOrganizer.lua: the events the player organizes or moderates, in
+-- the game's calendar (see Calendar.lua). The clients of an event's
+-- organizer and of its moderators keep each field in step both ways and
+-- cancel it when it is deleted in the game's calendar window; only the
+-- organizer's, which created its calendar event, links new events to their
+-- calendar event, adds those made in that window, deletes copies of an
+-- event, and deletes calendar events with no click (only the open event can
+-- be deleted).
 local _, ns = ...
 local L = ns.L
 
@@ -77,18 +80,17 @@ function Organizer.Link()
     end
 end
 
--- Brings one of our events and its calendar event together, field by
--- field. cal: the calendar's values (de only once the event was opened).
+-- Brings an event the player organizes or moderates and its calendar event
+-- together, field by field. cal: the calendar's values (de only once the
+-- event was opened).
 local function Reconcile(key, event, cal)
     local known = Read.State("known")
     local agreed = known[key]
     if not agreed then
-        -- First look: what the calendar has, so a change made in the
-        -- addon meanwhile goes there.
-        agreed = { ti = cal.ti, tm = cal.tm, ty = cal.ty, de = cal.de or event.de or "", lk = cal.lk }
-        if cal.lk == nil then
-            agreed.lk = event.lk == true
-        end
+        -- First look: what the addon has, so that what the calendar has
+        -- otherwise comes into it (the calendar first: the addon changes
+        -- only once the calendar took it).
+        agreed = { ti = event.ti, tm = event.tm, ty = event.ty, de = event.de or "", lk = event.lk == true }
         known[key] = agreed
     end
     local adopt
@@ -149,19 +151,21 @@ local function Landed(key, entry)
     end
 end
 
--- The organizer's client: what the calendar shows of each of their events,
--- into the addon. A calendar event missing for a while: deleted there, so
--- the event is cancelled (or, when we deleted it ourselves and the event
--- was restored since, created again).
+-- The clients of an event's organizer and of its moderators: what the
+-- calendar shows of it, into the addon. A calendar event missing for a
+-- while: deleted there, so the event is cancelled (or, when the organizer
+-- deleted it and it was restored since, created again).
 function Organizer.Watch()
     local now, clock = Events.Now(), GetTime()
     local gone, known, byCalendar = Read.State("gone"), Read.State("known"), Read.State("byCalendar")
     local used = Read.UsedIDs()
     for key, event in pairs(Events.All()) do
-        if event.owner == ns.playerGUID and event.ci ~= 0 then
+        local mine = event.owner == ns.playerGUID
+        local manages = event.ci ~= 0 and (mine or ns.Rights.MayIManage(event))
+        if manages then
             Landed(key, Read.Find(event.ci))
         end
-        if event.owner == ns.playerGUID and event.ci ~= 0 and event.tm > now and not Send.InFlight(key) then
+        if manages and event.tm > now and not Send.InFlight(key) then
             local entry = Read.Find(event.ci)
             -- The guild's list stands for events beyond the months looked
             -- at; it may still name one just deleted.
@@ -189,27 +193,29 @@ function Organizer.Watch()
             elseif event.x and Read.InRange(event.tm) then
                 gone[key] = true
             elseif Read.InRange(event.tm) then
-                -- Gone from its creator's calendar: deleted there. At once
-                -- if it was seen in this session; else once the calendar's
-                -- data came again, so not while it is still loading.
+                -- Gone from the calendar: deleted there. At once if it was
+                -- seen in this session; else, for its organizer, once the
+                -- calendar's data came again, so not while it is still
+                -- loading (a moderator's client waits to have seen it: the
+                -- one it knows may be one the organizer made anew since).
                 local deleted = seen[key]
-                if not deleted and not missing[key] then
+                if not deleted and mine and not missing[key] then
                     missing[key] = { at = clock, reads = Read.reads }
                     ns.Try(C_Calendar.OpenCalendar)
-                elseif not deleted and Read.reads > missing[key].reads then
+                elseif not deleted and mine and Read.reads > missing[key].reads then
                     deleted = true
-                elseif not deleted and clock - missing[key].at > 3 then
+                elseif not deleted and mine and clock - missing[key].at > 3 then
                     missing[key].at = clock
                     ns.Try(C_Calendar.OpenCalendar)
                 end
                 if deleted then
                     missing[key], seen[key] = nil, nil
-                    local copy = Read.Copies(event, used)[1]
+                    local copy = mine and Read.Copies(event, used)[1]
                     if copy then
                         -- Another of its copies stands for it.
                         used[copy.id] = true
                         Organizer.Linked(key, copy.id)
-                    elseif gone[key] then
+                    elseif mine and gone[key] then
                         gone[key], known[key] = nil, nil
                         Events.SetCalendarID(key, 0)
                     else
@@ -258,7 +264,7 @@ end
 function Organizer.ReconcileOpen(key)
     local event = Events.Get(key)
     local info = ns.Try(C_Calendar.GetEventInfo)
-    if not event or event.owner ~= ns.playerGUID or event.x or Send.InFlight(key) or not ns.CanRead(info) then
+    if not event or not ns.Rights.MayIManage(event) or event.x or Send.InFlight(key) or not ns.CanRead(info) then
         return
     end
     Reconcile(key, event, {

@@ -1,9 +1,10 @@
--- CalendarStatuses.lua: the statuses of the sign-ups of the organizer's
--- events in the game's calendar (see Calendar.lua), and their moderators,
--- both ways, with no click: the organizer's client opens an event and gives
--- each sign-up the addon's status and moderation, and takes into the addon
--- a status or a moderator given in the game's calendar window (also the
--- organizer's own line: the game keeps an event's creator in it).
+-- CalendarStatuses.lua: the statuses of an event's sign-ups in the game's
+-- calendar (see Calendar.lua), and its moderators, both ways, with no
+-- click: the clients of its organizer and of its moderators open the event
+-- and give each sign-up the addon's status and moderation, and take into
+-- the addon a status or a moderator given in the game's calendar window.
+-- The organizer's client also keeps their own line (the game keeps an
+-- event's creator in it).
 local _, ns = ...
 
 local Calendar, Read, Organizer, Statuses = ns.Calendar, ns.CalendarRead, ns.CalendarOrganizer, ns.CalendarStatuses
@@ -65,25 +66,32 @@ end
 -- One line of the open event's list: its moderation as the calendar has it
 -- and as the addon wants it (agreed: as both last agreed, the moderators of
 -- the event as the calendar and the addon last agreed on them). A change
--- made in the calendar comes into the addon, as the organizer's; a change
--- made in the addon (perhaps by a moderator) is returned to send, and the
--- organizer's record names it too, so it stays should its maker stop being
--- a moderator, as in the game's calendar.
+-- made in the calendar comes into the addon, as the player's; a change made
+-- in the addon (perhaps by a moderator) is returned to send. The
+-- organizer's client names in its own record whatever is so (perhaps
+-- named by a moderator, perhaps sent by a moderator's client), so it stays
+-- should its maker stop being a moderator, as in the game's calendar.
 local function ModeratorChange(key, event, guid, has, agreedOf)
     local want = event.md ~= nil and event.md[guid] == true
     local agreed = agreedOf[guid] == true
+    local change
     if has == want then
         agreedOf[guid] = has
     elseif want == agreed then
         agreedOf[guid] = has
+        want = has
         Events.SetModerator(key, guid, has)
         Note("from the calendar", "took a moderator named there: " .. event.ti)
     else
-        if OwnNaming(key, guid) ~= want then
+        change = { guid = guid, moderator = want }
+    end
+    if event.owner == ns.playerGUID then
+        local own = OwnNaming(key, guid)
+        if (want and own ~= true) or (not want and own == true) then
             Events.SetModerator(key, guid, want)
         end
-        return { guid = guid, moderator = want }
     end
+    return change
 end
 
 -- The open event's sign-ups: statuses given in the calendar into the
@@ -98,9 +106,11 @@ local function StatusChanges(key, event)
     local changes = {}
     for index = 1, Plain(ns.Try(C_Calendar.GetNumInvites)) or 0 do
         local invite = ns.Try(C_Calendar.EventGetInvite, index)
-        local own = ns.CanRead(invite) and (Plain(invite.inviteIsMine) == true or Plain(invite.guid) == ns.playerGUID)
+        local own = event.owner == ns.playerGUID and ns.CanRead(invite)
+            and (Plain(invite.inviteIsMine) == true or Plain(invite.guid) == ns.playerGUID)
         if own then
-            -- The organizer's own line (they created the event).
+            -- The organizer's own line (they created the event). A
+            -- moderator's is one more line of the list.
             local status, target = Plain(invite.inviteStatus), wanted[ns.playerGUID]
             local agreed = agreedOf[ns.playerGUID] or Enum.CalendarStatus.Confirmed
             if status == target and not Events.Mine(event) then
@@ -155,7 +165,8 @@ local function InviteIndex(guid)
     end
 end
 
--- The organizer's next event whose sign-ups to look at: one whose
+-- The next event the player organizes or moderates whose sign-ups to look
+-- at: one whose
 -- statuses changed in the addon since the last look, or, while the game's
 -- calendar window is closed, not looked at for a while (a sign-up or a
 -- change made in the calendar).
@@ -164,7 +175,7 @@ local function EventToMirror(now)
     local again = not Read.WindowShown()
     for key, event in pairs(Events.All()) do
         local entry = Read.Find(event.ci)
-        if entry and event.owner == ns.playerGUID and not event.x and event.tm > Events.Now() then
+        if entry and ns.Rights.MayIManage(event) and not event.x and event.tm > Events.Now() then
             local last = mirrored[key]
             local signature = StatusSignature(event)
             if not last or last.signature ~= signature or (again and now - last.at > MIRROR_EVERY) then
@@ -231,7 +242,8 @@ function Statuses.MirrorNext(now)
     return false
 end
 
--- The event open in the game's calendar window, when it is one of ours:
+-- The event open in the game's calendar window, when the player organizes
+-- or moderates it:
 -- what is changed there comes into the addon at once (the description and
 -- the statuses show only on the open event).
 function Statuses.ReadOpen()
@@ -244,7 +256,7 @@ function Statuses.ReadOpen()
     end
     local start, title = Read.StartOf(info.time), Plain(info.title)
     for key, event in pairs(Events.All()) do
-        if event.owner == ns.playerGUID and event.ci ~= 0 and not event.x and event.tm == start and event.ti == title then
+        if ns.Rights.MayIManage(event) and event.ci ~= 0 and not event.x and event.tm == start and event.ti == title then
             Organizer.ReconcileOpen(key)
             StatusChanges(key, Events.Get(key) or event)
             return

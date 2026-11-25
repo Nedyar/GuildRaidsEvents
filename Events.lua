@@ -610,8 +610,14 @@ end
 -- with a role and a note; st nil takes the answer back.
 function Events.Answer(key, st, role, note)
     local record = Own()
-    if not record or not Events.Get(key) then
+    local event = Events.Get(key)
+    if not record or not event then
         return false
+    end
+    if (st == nil or st == Events.DECLINED) and Events.IsModerator(event, ns.playerGUID) then
+        -- Out of its list, a moderator is one no more, as in the game's
+        -- calendar: signing up again does not make them one again.
+        Events.SetModerator(key, ns.playerGUID, false)
     end
     record.su = record.su or {}
     local old = record.su[key]

@@ -51,9 +51,14 @@ linked to the game's calendar.
   places, in the order they signed up, and leaves the rest on standby.
 - **Moderators**, as in the game's calendar: the organizer names them from
   a name's menu (**Set moderator**), among those in the event's list, and a
-  moderator may name or take back others too, never the organizer. They are
-  marked as the game's calendar marks them, and kept in step with it both
-  ways. Guild ranks give no rights over an event.
+  moderator may name or take back others too, never the organizer. One who
+  takes their sign-up back is a moderator no more, and signing up again
+  does not make them one again. They are marked as the game's calendar
+  marks them, and kept in step with it both ways. A moderator's client keeps
+  the event in step with the calendar as its organizer's does, also while
+  the organizer is away; only the organizer restores a cancelled event
+  (it is made again in the calendar, as theirs). Guild ranks give no rights
+  over an event.
 - **Locked events**: the game's **Lock event**, in the form. Members then
   cannot sign up, answer tentative or remove their sign-up, in the addon as
   in the game's calendar; the organizer still changes their own state and

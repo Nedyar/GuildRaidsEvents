@@ -23,11 +23,12 @@
 -- game's calendar took it; when the game refuses it, nothing changes, and
 -- the window says why.
 --
--- From the calendar to the addon: the organizer's client takes into the
--- addon what was changed in the game's calendar window (title, time, type,
--- description, whether it is locked, statuses), cancels the events deleted
--- there, and adds the guild events its character created there; each
--- member's client takes their own sign-up made there. For each field, the
+-- From the calendar to the addon: the clients of an event's organizer and
+-- of its moderators take into the addon what was changed in the game's
+-- calendar window (title, time, type, description, whether it is locked,
+-- statuses, moderators), and cancel it when it is deleted there; the
+-- organizer's client adds the guild events its character created there;
+-- each member's client takes their own sign-up made there. For each field, the
 -- side that changed since both last agreed wins; when both did, the
 -- calendar. A locked event takes no answers: a member's answer waits until
 -- it is unlocked.

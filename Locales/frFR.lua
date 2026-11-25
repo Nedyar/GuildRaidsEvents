@@ -101,6 +101,7 @@ ns.RegisterLocale("frFR", function(L)
     L["The game's calendar does not let this event be deleted now. Try again after /reload."] = "Le calendrier du jeu ne permet pas de supprimer cet évènement maintenant. Réessayez après /reload."
     L["The game's calendar does not let you change this event."] = "Le calendrier du jeu ne vous permet pas de modifier cet évènement."
     L["The game's calendar does not let you delete this event."] = "Le calendrier du jeu ne vous permet pas de supprimer cet évènement."
+    L["Only its organizer can restore it: it is made again in the game's calendar."] = "Seul son organisateur peut le rétablir : il est recréé dans le calendrier du jeu."
     L["The game's calendar refused the change. Click again to retry."] = "Le calendrier du jeu a refusé la modification. Cliquez à nouveau pour réessayer."
     L["No reminder"] = "Aucun rappel"
     L["%d |4minute:minutes; before"] = "%d |4minute:minutes; avant"

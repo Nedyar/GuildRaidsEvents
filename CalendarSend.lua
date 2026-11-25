@@ -315,9 +315,7 @@ function Calendar.UpdateFirst(key, fields)
     end
     local new = { ti = fields.ti, tm = fields.tm, ty = fields.ty, de = fields.de or "", lk = fields.lk == true }
     local item = Send.Put("update", key)
-    if event.owner == ns.playerGUID then
-        Read.State("known")[key] = new
-    end
+    Read.State("known")[key] = new
     if Send.Try("update", item, function()
         Fill(new)
         C_Calendar.UpdateEvent()
@@ -373,18 +371,31 @@ function Calendar.Cancelling(key)
     return Send.Item("cancel", key) ~= nil
 end
 
+-- Why the player cannot restore that cancelled event, or nil: it is made
+-- again in the game's calendar, which only its organizer can do (one
+-- over, or never in the calendar, is restored in the addon only).
+function Calendar.RestoreBlocked(event)
+    if event.owner ~= ns.playerGUID and event.ci ~= 0 and event.tm > Events.Now() then
+        return L["Only its organizer can restore it: it is made again in the game's calendar."]
+    end
+end
+
 -- The click that restores a cancelled event (EventView.lua): for its
 -- organizer, the calendar first; the event is restored in the addon once
 -- the calendar has it again, and stays cancelled if it refuses it. Whether
--- it was sent (or, for someone else's or a past one, restored).
+-- it was sent (or, for a past one or one never in the calendar, restored).
 function Calendar.Restore(key)
     local event = Events.Get(key)
     if not event then
         return false
     end
-    if event.owner ~= ns.playerGUID or event.tm <= Events.Now() or event.ci == 0 then
-        -- Not the player's to create, over, or never in the calendar (it
-        -- waits for its Create in calendar button again): the addon only.
+    local why = Calendar.RestoreBlocked(event)
+    if why then
+        Calendar.lastError = why
+        return false
+    elseif event.tm <= Events.Now() or event.ci == 0 then
+        -- Over, or never in the calendar (it waits for its Create in
+        -- calendar button again): the addon only.
         return Events.Cancel(key, false)
     end
     if Read.ActionPending() then

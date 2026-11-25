@@ -514,12 +514,14 @@ function EventView.UpdateControls(signUps)
     view.Title:SetPoint("TOPLEFT", view.Icon, "TOPRIGHT", 8, -2)
     view.Title:SetPoint("RIGHT", first, "LEFT", -8, 0)
     -- Cancel event: off while the calendar deletes it. Restore event: off
-    -- while the calendar makes it again, and at the game's limit of events
-    -- created (it would be created again).
+    -- while the calendar makes it again, at the game's limit of events
+    -- created (it would be created again), and for a moderator when only
+    -- the organizer can make it again.
     local waiting = event.x and ns.Calendar.Restoring(event.key) or not event.x and ns.Calendar.Cancelling(event.key)
     local atLimit = event.x and organizer and ns.Calendar.AtLimit()
-    view.Cancel:SetEnabled(not waiting and not atLimit)
-    view.Cancel.reason = waiting and L["Syncing the calendar..."] or atLimit and ns.Calendar.LimitText() or nil
+    local notMine = event.x and ns.Calendar.RestoreBlocked(event)
+    view.Cancel:SetEnabled(not waiting and not atLimit and not notMine)
+    view.Cancel.reason = waiting and L["Syncing the calendar..."] or atLimit and ns.Calendar.LimitText() or notMine or nil
     -- A locked event takes no answers from members; its creator still
     -- changes their own, as the game's calendar lets them.
     local locked = event.lk and not organizer

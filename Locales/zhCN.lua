@@ -101,6 +101,7 @@ ns.RegisterLocale("zhCN", function(L)
     L["The game's calendar does not let this event be deleted now. Try again after /reload."] = "游戏日历现在不允许删除此活动。请在 /reload 后重试。"
     L["The game's calendar does not let you change this event."] = "游戏日历不允许你更改此活动。"
     L["The game's calendar does not let you delete this event."] = "游戏日历不允许你删除此活动。"
+    L["Only its organizer can restore it: it is made again in the game's calendar."] = "只有其组织者可以恢复它：它会在游戏日历中重新创建。"
     L["The game's calendar refused the change. Click again to retry."] = "游戏日历拒绝了此更改。请再次点击重试。"
     L["No reminder"] = "不提醒"
     L["%d |4minute:minutes; before"] = "提前 %d 分钟"
