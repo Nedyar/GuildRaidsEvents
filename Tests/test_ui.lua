@@ -649,10 +649,11 @@ H.check(ns.Events.SetModerator(scholo.key, member.guid, true), "the organizer na
 world:RunFor(30)
 member.ns.EventView.Refresh()
 local modButtons = view.States.moderator
-H.check(modButtons[1].button:IsShown() and modButtons[4].button:IsShown() and not view.SignUp:IsShown()
-    and not view.Confirm:IsShown(), "theirs: Confirmed, Standby, Tentative and Remove sign-up")
-H.eq(modButtons[4].button:GetText(), "Remove sign-up", "the last removes their sign-up")
-H.eq(modButtons[4].button.reason, "Takes your sign-up back: you are a moderator no more, as in the game's calendar.",
+H.check(modButtons[1].button:IsShown() and modButtons[5].button:IsShown() and not view.SignUp:IsShown()
+    and not view.Confirm:IsShown(), "theirs: Confirmed, Standby, Tentative, Out and Remove sign-up")
+H.eq(modButtons[4].button:GetText(), "Out", "Out, as the organizer's")
+H.eq(modButtons[5].button:GetText(), "Remove sign-up", "the last removes their sign-up")
+H.eq(modButtons[5].button.reason, "Takes your sign-up back: you are a moderator no more, as in the game's calendar.",
     "and says it ends their moderation")
 local removesBefore = Removes()
 H.Click(modButtons[3].button)
@@ -668,21 +669,22 @@ modMine = member.ns.Events.Mine(member.ns.Events.Get(scholo.key))
 H.check(modMine ~= nil and modMine.status == 1 and Invite(member.guid) ~= nil and Invite(member.guid).status == 3
     and Invite(member.guid).modStatus == "MODERATOR",
     "Confirmed: confirmed, in both, a moderator still")
-H.eq(Removes(), removesBefore, "their sign-up never taken back in the calendar meanwhile")
 member.ns.EventView.Refresh()
 H.eq(modButtons[1].button.reason, "You are already in this state.", "Confirmed is off now, saying why")
-member.contextMenu = nil
-for role = 1, 3 do
-    local own = NameIn(view, role, member.guid)
-    if own then
-        H.Click(own, "RightButton")
-    end
-end
-H.MenuEntry(member.contextMenu, "Out").setSelected()
+H.Click(modButtons[4].button)
+world:RunFor(30)
+modMine = member.ns.Events.Mine(member.ns.Events.Get(scholo.key))
+H.check(modMine ~= nil and modMine.status == 3 and member.ns.Events.IsModerator(member.ns.Events.Get(scholo.key), member.guid),
+    "Out: out, in its list still, a moderator still, as in the game's calendar")
+H.check(Invite(member.guid) ~= nil and Invite(member.guid).status == 4 and Invite(member.guid).modStatus == "MODERATOR",
+    "in the calendar too")
+H.eq(Removes(), removesBefore, "their sign-up never taken back in the calendar meanwhile")
+member.ns.EventView.Refresh()
+H.Click(modButtons[5].button)
 world:RunFor(30)
 H.check(member.ns.Events.Mine(member.ns.Events.Get(scholo.key)) == nil
     and not member.ns.Events.IsModerator(member.ns.Events.Get(scholo.key), member.guid),
-    "putting themselves out from their name's menu takes them out of its list, a moderator no more, as in the game")
+    "Remove sign-up: out of its list, a moderator no more, as in the game")
 member.ns.EventView.Refresh()
 H.check(view.SignUp:IsShown() and not modButtons[1].button:IsShown(), "a member's buttons again")
 member.ns.EventView.Close()

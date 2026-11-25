@@ -301,7 +301,7 @@ created = Events.Create({ ty = 1, ti = "Scholomance", tm = Events.Now() + 86400,
 H.check(Events.IsModerator(Events.Get(eventKey), solo.guid), "the guild master moderates a member's event")
 H.check(Events.SetStatus(eventKey, solo.guid, Events.OUT), "a status out given them")
 H.check(guild.members[solo.guid].su[eventKey] ~= nil and Events.IsModerator(Events.Get(eventKey), solo.guid),
-    "leaves them in its list, a moderator still (only a moderator putting themselves out leaves it)")
+    "leaves them in its list, a moderator still, as in the game's calendar")
 H.check(Events.SetStatus(eventKey, solo.guid, Events.NONE), "(status taken back)")
 H.check(Events.SetStatus(eventKey, member, Events.OUT), "a moderator gives the organizer a status too, as the game's calendar lets them")
 local organizerLine

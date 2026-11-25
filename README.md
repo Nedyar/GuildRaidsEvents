@@ -29,8 +29,9 @@ linked to the game's calendar.
   answer again once it is back.
   The buttons say so when they are off. The organizer, whom the game keeps in their event, picks their
   own state instead: **Confirmed**, **Standby**, **Tentative** or **Out**;
-  a moderator, **Confirmed**, **Standby**, **Tentative** or **Remove
-  sign-up** (which ends their moderation, as in the game).
+  a moderator, the same (out, they stay in the event's list, as in the
+  game), or **Remove sign-up** (which ends their moderation, as in the
+  game).
 - **Creating an event**: **New event**, under the list, for those whose
   guild rank may add guild events to the game's calendar. Give it a title,
   a type (raid, dungeon, PvP, meeting, other) and, for a raid or a dungeon,
@@ -63,8 +64,8 @@ linked to the game's calendar.
 - **Moderators**, as in the game's calendar: the organizer names them from
   a name's menu (**Set moderator**), among those in the event's list, and a
   moderator may name or take back others too, never the organizer. One who
-  takes their sign-up back, or puts themselves out, leaves the event's list
-  and is a moderator no more, and signing up again does not make them one
+  takes their sign-up back leaves the event's list and is a moderator no
+  more, and signing up again does not make them one
   again. They are marked as the game's calendar marks them, and kept in
   step with it both ways. A moderator's client keeps the event in step with
   the calendar as its organizer's does (the organizer's own status too),

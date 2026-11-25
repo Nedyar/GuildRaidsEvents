@@ -139,15 +139,7 @@ local function NameMenu(owner, signUp)
                 root:CreateRadio(UI.StatusName(status), function()
                     return signUp.status == status and not (signUp.auto and status ~= Events.NONE)
                 end, function()
-                    if status == Events.OUT and signUp.guid == ns.playerGUID and event.owner ~= ns.playerGUID then
-                        -- A moderator who puts themselves out leaves the
-                        -- event's list, and their moderation with it, as
-                        -- in the game's calendar (seen in game; others
-                        -- put out stay).
-                        Events.Answer(event.key, nil)
-                    else
-                        Events.SetStatus(event.key, signUp.guid, status)
-                    end
+                    Events.SetStatus(event.key, signUp.guid, status)
                 end)
             end
             root:CreateDivider()
@@ -368,8 +360,8 @@ local function CreateControls()
     -- calendar offers them: a member signs up, signs up as tentative or
     -- removes their sign-up; the organizer (the event's creator, whom the
     -- game keeps in it) is confirmed, on standby, tentative or out; a
-    -- moderator is confirmed, on standby or tentative, or removes their
-    -- sign-up (and their moderation with it).
+    -- moderator too (out, they stay in its list, as in the game's
+    -- calendar), or removes their sign-up (and their moderation with it).
     local function StateButton(state, text)
         return { state = state, button = UI.Button(view, text or UI.StateName(state), function()
             SetOwnState(state)
@@ -383,7 +375,7 @@ local function CreateControls()
     for _, state in ipairs({ "confirmed", "standby", "tentative", "out" }) do
         table.insert(view.States.organizer, StateButton(state))
     end
-    for _, state in ipairs({ "confirmed", "standby", "tentative" }) do
+    for _, state in ipairs({ "confirmed", "standby", "tentative", "out" }) do
         table.insert(view.States.moderator, StateButton(state))
     end
     table.insert(view.States.moderator, StateButton("none", L["Remove sign-up"]))
