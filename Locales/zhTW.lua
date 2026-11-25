@@ -44,6 +44,7 @@ ns.RegisterLocale("zhTW", function(L)
     L["automatically"] = "自動"
     L["Level %d"] = "等級 %d"
     L["Signed up outside the game."] = "在遊戲外報名。"
+    L["Signed up in the game's calendar, without the addon."] = "在遊戲行事曆中報名，未使用插件。"
     L["Right-click for its menu."] = "右鍵點擊開啟選單。"
     L["Drag it to another column to change its role."] = "拖到另一欄以變更其職責。"
     L["Role"] = "職責"

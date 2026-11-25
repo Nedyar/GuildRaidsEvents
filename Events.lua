@@ -17,7 +17,13 @@
 --     longer a moderator by then does not count.
 --   - A member's answer (signed up, tentative, not coming; their role and a
 --     note) is in their own record, or brought in from outside the game by
---     a bridge character (xs, API.lua): the newest of the two counts.
+--     a bridge character (xs, API.lua): the newest of the two counts. One
+--     taken back stays as "not coming", so that the time it was taken back
+--     is known.
+--   - The sign-ups made in the game's calendar by members whose answer is
+--     not the addon's (without the addon, or with it off then) come from
+--     the newest list read there by anyone's client (cs,
+--     CalendarLists.lua).
 --   - A sign-up's status (confirmed, standby, out) is the newest any of
 --     those who may manage the event gave. In an event that confirms by
 --     itself, those who signed up without a status are confirmed while
@@ -137,9 +143,58 @@ end
 
 local cache    -- { [key] = event }, until the data or the roster change
 local deleted  -- { [key] = event }: those deleted, not in the cache
+local lists    -- { [calendar event ID] = list }: the newest list read of each (Lists)
 
 function Events.Invalidate()
-    cache, deleted = nil, nil
+    cache, deleted, lists = nil, nil, nil
+end
+
+-- The sign-up lists read in the game's calendar (cs), the newest of each
+-- calendar event among the guild's members: { [event ID] = { at, cr, de,
+-- l, by = who read it } }.
+local function Lists(guild)
+    local newest = {}
+    for guid, record in pairs(guild.members) do
+        if not ns.Roster.ready or ns.Roster.members[guid] then
+            for id, list in pairs(record.cs or {}) do
+                local current = newest[id]
+                if not current or list.at > current.at or (list.at == current.at and guid < current.by) then
+                    newest[id] = { at = list.at, cr = list.cr, de = list.de, l = list.l, by = guid }
+                end
+            end
+        end
+    end
+    return newest
+end
+
+-- The answer a line of an event's list read in the calendar stands for,
+-- Events.SIGNED or TENTATIVE, when the addon shows it: someone signed up
+-- there (in any way) whose answer is not the addon's: none of theirs (or
+-- one taken back before the list was read), nor one brought in from
+-- outside the game. Never the player's own: their client takes it in
+-- itself (CalendarMember.lua).
+local function CalendarAnswerOf(event, guid, line, list, guild)
+    local answer = ns.States.CalendarAnswer(line.s)
+    if answer == "none" or guid == ns.playerGUID then
+        return nil
+    end
+    local record = guild.members[guid]
+    local own = record and record.su and record.su[event.key]
+    if own and (own.st ~= Events.DECLINED or own.at >= list.at) then
+        return nil
+    end
+    for bridge, other in pairs(guild.members) do
+        if other.xs and other.xs[event.key] and other.xs[event.key][guid] and ns.Rights.IsBridge(bridge) then
+            return nil
+        end
+    end
+    return answer == "signed" and Events.SIGNED or Events.TENTATIVE
+end
+
+-- The newest list read of a calendar event (see Lists), or nil.
+function Events.CalendarList(calendarID)
+    Events.All()
+    return calendarID and lists[calendarID] or nil
 end
 
 -- An event's fields (Pack.lua says what each is).
@@ -177,6 +232,7 @@ end
 local function Build()
     local events, gone = {}, {}
     local guild = ns.Data.CurrentGuild(false)
+    lists = guild and Lists(guild) or {}
     if not guild then
         return events, gone
     end
@@ -244,7 +300,8 @@ end
 
 -- Whether a member moderates the event: named (Moderators), and in its
 -- list, as the game's calendar keeps its moderators: their own answer,
--- signed up or tentative, in any status (one taken back leaves the list).
+-- signed up or tentative, in any status (one taken back leaves the list),
+-- or their sign-up made in the calendar.
 function Events.IsModerator(event, guid)
     if not (event.md and guid and event.md[guid]) then
         return false
@@ -252,7 +309,12 @@ function Events.IsModerator(event, guid)
     local guild = ns.Data.CurrentGuild(false)
     local record = guild and guild.members[guid]
     local answer = record and record.su and record.su[event.key]
-    return answer ~= nil and answer.st ~= Events.DECLINED
+    if answer and answer.st ~= Events.DECLINED then
+        return true
+    end
+    local list = lists and event.ci ~= 0 and lists[event.ci] or nil
+    local line = list and list.l[guid]
+    return line ~= nil and guild ~= nil and CalendarAnswerOf(event, guid, line, list, guild) ~= nil
 end
 
 function Events.IsUpcoming(event, now)
@@ -284,17 +346,30 @@ end
 -- Sign-ups -------------------------------------------------------------------------------------
 
 -- The answers to an event: { [GUID] = { guid, st, ro, no, at, external,
--- by = the bridge character that brought it in } }: each member's own, or
--- the one brought in from outside the game, the newest.
+-- by = the bridge character that brought it in, calendar = made in the
+-- game's calendar } }: each member's own, or the one brought in from
+-- outside the game, the newest; or, for those whose answer is not the
+-- addon's, the one the calendar has (at: when they gave it, or when it was
+-- read).
 function Events.Answers(key)
     local answers = {}
     local guild = ns.Data.CurrentGuild(false)
     if not guild then
         return answers
     end
+    local event = Events.Get(key)
+    local list = event and event.ci ~= 0 and lists[event.ci]
+    for guid, line in pairs(list and list.l or {}) do
+        local st = CalendarAnswerOf(event, guid, line, list, guild)
+        if st then
+            answers[guid] = { guid = guid, st = st, at = line.r or list.at, calendar = true }
+        end
+    end
     for guid, record in pairs(guild.members) do
         local answer = record.su and record.su[key]
-        if answer then
+        -- (One taken back before the calendar's list was read: the
+        -- calendar's.)
+        if answer and not answers[guid] then
             answers[guid] = { guid = guid, st = answer.st, ro = answer.ro, no = answer.no, at = answer.at }
         end
     end
@@ -669,7 +744,9 @@ function Events.Purge(key)
 end
 
 -- The player answers an event: st Events.SIGNED, TENTATIVE or DECLINED,
--- with a role and a note; st nil takes the answer back.
+-- with a role and a note; st nil takes the answer back: it stays as not
+-- coming, with the time it was taken back, so that a list read in the
+-- calendar before it does not bring them back (CalendarAnswerOf).
 function Events.Answer(key, st, role, note)
     local record = Own()
     local event = Events.Get(key)
@@ -688,8 +765,8 @@ function Events.Answer(key, st, role, note)
             return false
         end
         record.su[key] = { st = st, ro = role, no = ns.Data.CleanNote(note), at = NextChange(old and old.at) }
-    else
-        record.su[key] = nil
+    elseif old and old.st ~= Events.DECLINED then
+        record.su[key] = { st = Events.DECLINED, ro = old.ro, at = NextChange(old.at) }
     end
     Touch(record, "signUps")
     return true
@@ -809,6 +886,20 @@ function Events.SetExternal(key, guid, st, role, note)
     return true
 end
 
+-- A calendar event's sign-up list as the player's client just read it
+-- (CalendarLists.lua): { at, cr, de, l }, shared in their record (cs).
+-- Whether it was.
+function Events.ShareList(calendarID, list)
+    local record = Own()
+    if not record or not HasRoom(record.cs, calendarID, LIMITS.statusEvents) then
+        return false
+    end
+    record.cs = record.cs or {}
+    record.cs[calendarID] = list
+    Touch(record, "lists")
+    return true
+end
+
 -- The calendar's event ID of an event the player organizes, once it is in
 -- the game's calendar (Calendar.lua).
 function Events.SetCalendarID(key, calendarID)
@@ -886,6 +977,28 @@ function Events.Tidy()
         if record[field] and not next(record[field]) then
             record[field] = nil
         end
+    end
+    -- The lists read in the calendar: those of events past or no longer
+    -- known (after a day: one may be out of the player's calendar for a
+    -- while), and those someone else read since.
+    local byID = {}
+    for _, list in ipairs({ all, deletedEvents }) do
+        for _, event in pairs(list) do
+            if event.ci ~= 0 then
+                byID[event.ci] = event
+            end
+        end
+    end
+    for id, list in pairs(record.cs or {}) do
+        local event, newest = byID[id], lists[id]
+        if (event and event.tm + Events.KEEP < now) or (not event and list.at + DAY < realNow)
+                or (newest and newest.by ~= ns.playerGUID and newest.at > list.at) then
+            record.cs[id] = nil
+            changed = true
+        end
+    end
+    if record.cs and not next(record.cs) then
+        record.cs = nil
     end
     if changed then
         Touch(record, "events")

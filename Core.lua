@@ -37,9 +37,9 @@ function ns.Sync.OwnReady()
     return true
 end
 
--- Changes the members wait for (a sign-up, a confirmation) go out within
--- seconds.
-for _, kind in ipairs({ "events", "signUps", "statuses", "external", "options" }) do
+-- Changes the members wait for (a sign-up, a confirmation, one made in the
+-- game's calendar) go out within seconds.
+for _, kind in ipairs({ "events", "signUps", "statuses", "external", "options", "lists" }) do
     ns.Sync.QUICK_KINDS[kind] = true
 end
 

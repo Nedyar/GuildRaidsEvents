@@ -52,6 +52,11 @@ local record = {
     xs = { ["Player-1-0000000A/t2abc"] = { ["Player-1-0000000E"] = { st = 2, ro = 1, no = "from Discord", at = now } } },
     mo = { ["Player-1-0000000A/t2abc"] = { ["Player-1-0000000C"] = { on = true, at = now }, ["Player-1-0000000D"] = { on = false, at = now } } },
     ra = { ["Player-1-0000000A/t2abc"] = { ["Player-1-0000000C"] = { ro = 1, at = now }, ["Player-1-0000000D"] = { ro = 3, at = now } } },
+    cs = {
+        [2773004] = { at = now, cr = "Player-1-0000000A", l = { ["Player-1-00000010"] = { s = 6, m = false, r = now - 60 },
+            ["Player-1-00000011"] = { s = 8, m = true, r = 0 } } },
+        [2773005] = { at = now - 5, cr = "Player-1-0000000B", de = "Made in the calendar.", l = {} },
+    },
     cf = { t = now, br = { "Player-1-0000000F" } },
 }
 local key, back = Pack.ReadRecord(Pack.Reader(Pack.RecordString(GUID, record)))
@@ -61,8 +66,9 @@ local bare = { n = "Solo Name", t = now, av = 100 }
 _, back = Pack.ReadRecord(Pack.Reader(Pack.RecordString(GUID, bare)))
 H.check(back.ev == nil and back.su == nil and back.ms == nil and back.xs == nil and back.cf == nil and back.pe == nil,
     "a record with nothing reads with nothing")
--- As the versions before roles given, and before moderators, packed it
--- (they end before them: one byte each, an empty count).
+-- As the versions before lists read in the calendar, before roles given,
+-- and before moderators, packed it (they end before them: one byte each,
+-- an empty count).
 local bareString = Pack.RecordString(GUID, bare)
 local function Older(dropped)
     local bareReader = Pack.Reader(bareString)
@@ -72,8 +78,11 @@ local function Older(dropped)
     return pcall(Pack.ReadRecord, Pack.Reader(older:Result()))
 end
 local olderOK, olderGUID, olderBack = Older(1)
-H.check(olderOK and olderGUID == GUID and olderBack.ra == nil, "a record packed before roles given still reads")
+H.check(olderOK and olderGUID == GUID and olderBack.cs == nil, "a record packed before lists read in the calendar still reads")
 olderOK, olderGUID, olderBack = Older(2)
+H.check(olderOK and olderGUID == GUID and olderBack.ra == nil and olderBack.cs == nil,
+    "and one packed before roles given")
+olderOK, olderGUID, olderBack = Older(3)
 H.check(olderOK and olderGUID == GUID and olderBack.mo == nil and olderBack.ra == nil,
     "and one packed before moderators")
 -- A later version's extra fields are skipped, and the next record still reads.
@@ -128,6 +137,14 @@ H.eq(Without(function(r) r.su["Player-1-0000000B/zz"].at = now + 3600 end).su["P
     "an answer dated in the future left out")
 H.eq(#Without(function(r) r.cf.br = { "Player-1-0000000F", "Player-1-0000000F", "nope" } end).cf.br, 1,
     "bridge characters: repeated and bad GUIDs left out")
+H.check(ns.Same(clean.cs[2773005], record.cs[2773005]) and clean.cs[2773004].l["Player-1-00000010"].r == now - 60
+    and clean.cs[2773004].l["Player-1-00000011"].r == nil, "lists read in the calendar pass (an unknown answer time: none)")
+H.eq(Without(function(r) r.cs[2773004].l["Player-1-00000010"].s = 99 end).cs[2773004].l["Player-1-00000010"], nil,
+    "a line with an unknown status left out")
+H.eq(Without(function(r) r.cs[2773004].l["nope"] = { s = 6 } end).cs[2773004].l["nope"], nil, "a line with a bad GUID left out")
+H.eq(Without(function(r) r.cs[2773004].at = now + 3600 end).cs[2773004], nil, "a list read in the future left out")
+H.eq(Without(function(r) r.cs[2773004].cr = "nope" end).cs[2773004], nil, "a list with a bad creator left out")
+H.eq(Without(function(r) r.cs[0.5] = r.cs[2773004] end).cs[0.5], nil, "a list of no calendar event left out")
 
 H.section("Places")
 local UI = ns.UI
@@ -286,6 +303,76 @@ guild.members[officer].cf = { t = now + 10, br = {} }
 Refresh()
 H.check(ns.Rights.IsBridge(bridge), "the options of anyone but the guild master are left out")
 
+H.section("Events: sign-ups made in the game's calendar")
+-- Two members who never run the addon sign up in the calendar; the list
+-- the bridge character's client read there says so.
+local _, noAddon = world:AddMember("Calendar Name", nil, { rank = "Member", rankIndex = 3 })
+local _, lateMember = world:AddMember("Late Name", nil, { rank = "Member", rankIndex = 3 })
+world:RosterChanged()
+world:RunFor(5)
+local wasAuto, wasCI, wasStatuses, wasNamings = base.ac, base.ci, guild.members[member].ms, guild.members[member].mo
+base.ac, base.ci = nil, 2773100
+local CI = base.ci
+local S = { Signedup = 6, Tentative = 8, NotSignedup = 7, Confirmed = 3 }
+guild.members[bridge].cs = { [CI] = { at = now + 20, cr = member, l = {
+    [noAddon] = { s = S.Signedup, r = now - 500 }, [officer] = { s = S.Tentative }, [solo.guid] = { s = S.Signedup },
+    [lateMember] = { s = S.NotSignedup },
+} } }
+Refresh()
+local fromCalendar = Find(Events.SignUps(event), noAddon)
+H.check(fromCalendar ~= nil and fromCalendar.calendar and fromCalendar.st == Events.SIGNED and fromCalendar.ro == nil
+    and fromCalendar.name == "Calendar Name", "a member without the addon signed up in the calendar shows, marked so, with no role")
+H.eq(Events.SignUps(event)[1].guid, noAddon, "in the order they answered there")
+H.check(not Find(Events.SignUps(event), officer).calendar and Find(Events.SignUps(event), officer).st == Events.SIGNED,
+    "a member whose answer is the addon's keeps it, whatever the calendar says")
+H.check(not Find(Events.SignUps(event), solo.guid).calendar, "the player's own line is never taken from a list")
+local soloAnswer = guild.members[solo.guid].su[eventKey]
+guild.members[solo.guid].su[eventKey] = nil
+Refresh()
+H.eq(Events.Mine(event), nil, "not even with no answer of theirs: their client takes it in (CalendarMember.lua)")
+guild.members[solo.guid].su[eventKey] = soloAnswer
+Refresh()
+H.eq(Find(Events.SignUps(event), lateMember), nil, "a line not signed up is no sign-up")
+H.eq(Events.Counts(Events.SignUps(event))[3], 2, "counted like any other (damage, as they gave no role)")
+guild.members[bridge].cs[CI].l[lateMember] = { s = S.Tentative }
+guild.members[lateMember] = { t = now, av = 100, n = "Late Name", su = { [eventKey] = { st = Events.DECLINED, at = now + 30 } } }
+Refresh()
+H.eq(Find(Events.SignUps(event), lateMember).st, Events.DECLINED,
+    "one who took their answer back after the list was read: not signed up")
+guild.members[officer].cs = { [CI] = { at = now + 40, cr = member, l = {
+    [noAddon] = { s = S.Signedup, r = now - 500 }, [lateMember] = { s = S.Tentative, r = now + 35 } } } }
+Refresh()
+local late = Find(Events.SignUps(event), lateMember)
+H.check(late.calendar and late.st == Events.TENTATIVE and late.at == now + 35,
+    "signed up in the calendar since (the addon off, say): tentative, from the newer list")
+guild.members[officer].cs[CI].l[noAddon] = nil
+Refresh()
+H.eq(Find(Events.SignUps(event), noAddon), nil, "the newest list counts: gone from it, gone from the addon")
+guild.members[officer].cs[CI].l[noAddon] = { s = S.Signedup, r = now - 500 }
+guild.members[member].ms = { [eventKey] = { [noAddon] = { st = Events.CONFIRMED, at = now + 50 } } }
+Refresh()
+H.eq(Find(Events.SignUps(event), noAddon).status, Events.CONFIRMED, "the organizer gives them a status like anyone")
+guild.members[member].mo = { [eventKey] = { [noAddon] = { on = true, at = now + 50 } } }
+Refresh()
+H.check(Events.IsModerator(event, noAddon), "and names them a moderator: in the list, they moderate")
+guild.members[officer].cs[CI].l[noAddon] = nil
+guild.members[bridge].cs = nil
+Refresh()
+H.check(not Events.IsModerator(event, noAddon), "out of it, no more")
+H.check(Events.CalendarList(CI).by == officer and Events.CalendarList(CI).at == now + 40, "the newest list of each, and who read it")
+-- The player's own lists: those someone read since go.
+guild.members[solo.guid].cs = { [CI] = { at = now + 30, cr = member, l = {} } }
+Events.Tidy()
+H.eq(guild.members[solo.guid].cs, nil, "a list of the player's someone read since is dropped")
+guild.members[solo.guid].cs = { [CI] = { at = now + 60, cr = member, l = {} }, [999] = { at = now - 2 * 86400, l = {} } }
+Events.Tidy()
+H.check(guild.members[solo.guid].cs[CI] ~= nil and guild.members[solo.guid].cs[999] == nil,
+    "the newest is kept; one of no event known for a day is dropped")
+guild.members[solo.guid].cs, guild.members[officer].cs, guild.members[lateMember] = nil, nil, nil
+guild.members[member].ms, guild.members[member].mo = wasStatuses, wasNamings
+base.ac, base.ci = wasAuto, wasCI
+Refresh()
+
 H.section("Events: the player's own changes")
 local created = Events.Create({ ty = 1, ti = "Scholomance", tm = Events.Now() + 86400, de = "", ml = 55, sl = { t = 1, h = 1, d = 3 } })
 H.check(created ~= nil and Events.Get(created) ~= nil and Events.Get(created).owner == solo.guid, "creating an event")
@@ -337,7 +424,13 @@ local noteOK, _, noteBack = pcall(Pack.ReadRecord, Pack.Reader(Pack.RecordString
 H.check(noteOK and noteBack.su[created].no == longNote, "and reads back whole")
 H.check(Events.Answer(created, Events.SIGNED, Events.DAMAGE, longNote .. "ñññ"), "answering with a longer one (another addon, say)")
 H.eq(Events.Mine(Events.Get(created)).no, longNote, "it is cut to 60 letters, not dropped")
-H.check(Events.Answer(created, nil) and Events.Mine(Events.Get(created)) == nil, "taking it back")
+local answeredAt = Events.Mine(Events.Get(created)).at
+H.check(Events.Answer(created, nil) and ns.States.Of(Events.Mine(Events.Get(created))) == "none", "taking it back")
+local takenBack = guild.members[solo.guid].su[created]
+H.check(takenBack.st == Events.DECLINED and takenBack.at > answeredAt,
+    "it stays as not coming, with the time it was taken back")
+H.check(Events.Answer(created, nil) and guild.members[solo.guid].su[created].at == takenBack.at,
+    "taking back again changes nothing")
 H.check(Events.SetStatus(created, member, Events.CONFIRMED), "giving a status in one's event")
 -- Roles: the organizer (or a moderator) changes anyone's; a member, their own.
 local function SignUpOf(key, guid)

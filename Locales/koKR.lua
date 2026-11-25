@@ -44,6 +44,7 @@ ns.RegisterLocale("koKR", function(L)
     L["automatically"] = "자동"
     L["Level %d"] = "레벨 %d"
     L["Signed up outside the game."] = "게임 밖에서 신청함."
+    L["Signed up in the game's calendar, without the addon."] = "애드온 없이 게임 달력에서 참가 신청했습니다."
     L["Right-click for its menu."] = "오른쪽 클릭하면 메뉴가 열립니다."
     L["Drag it to another column to change its role."] = "다른 열로 끌어 역할을 바꿉니다."
     L["Role"] = "역할"

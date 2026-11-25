@@ -209,6 +209,50 @@ local function CleanNested(map, clean, now)
     return next(result) and result or nil
 end
 
+-- The sign-up lists read in the calendar (cs): { [event ID] = { at, cr,
+-- de, l = { [GUID] = { s, m, r } } } }; at most LIMITS.statusEvents lists
+-- and LIMITS.perEvent lines in one.
+local MAX_STATUS = 20  -- the game's calendar statuses (Enum.CalendarStatus) are numbered below this
+
+local function CleanLists(lists, now)
+    if type(lists) ~= "table" then
+        return nil
+    end
+    local ids = {}
+    for id in pairs(lists) do
+        if Lib.IsCount(id, 4294967295) and id > 0 then
+            ids[#ids + 1] = id
+        end
+    end
+    table.sort(ids)
+    local result, count = {}, 0
+    for _, id in ipairs(ids) do
+        local list = lists[id]
+        if count < LIMITS.statusEvents and type(list) == "table" and IsTime(list.at, now) and type(list.l) == "table"
+                and (list.cr == nil or Lib.IsGUID(list.cr)) then
+            local clean = { at = list.at, cr = list.cr, l = {} }
+            if list.de ~= nil then
+                clean.de = CleanText(list.de, LIMITS.description, true)
+                if clean.de == "" then
+                    clean.de = nil
+                end
+            end
+            local lines = 0
+            for _, guid in ipairs(SortedKeys(list.l)) do
+                local line = list.l[guid]
+                if lines < LIMITS.perEvent and Lib.IsGUID(guid) and type(line) == "table" and Lib.IsCount(line.s, MAX_STATUS)
+                        and (line.r == nil or line.r == 0 or IsTime(line.r, now)) then
+                    clean.l[guid] = { s = line.s, m = line.m == true, r = line.r ~= 0 and line.r or nil }
+                    lines = lines + 1
+                end
+            end
+            result[id] = clean
+            count = count + 1
+        end
+    end
+    return next(result) and result or nil
+end
+
 local function CleanOptions(options, now)
     if type(options) ~= "table" or not IsTime(options.t, now) or type(options.br) ~= "table" then
         return nil
@@ -270,6 +314,7 @@ function Data.CleanRecord(record, now)
     clean.xs = CleanNested(record.xs, CleanAnswer, now)
     clean.mo = CleanNested(record.mo, CleanModerator, now)
     clean.ra = CleanNested(record.ra, CleanRole, now)
+    clean.cs = CleanLists(record.cs, now)
     if record.cf ~= nil then
         clean.cf = CleanOptions(record.cf, now)
     end

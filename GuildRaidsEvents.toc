@@ -42,6 +42,7 @@ CalendarSend.lua
 CalendarOrganizer.lua
 CalendarMember.lua
 CalendarStatuses.lua
+CalendarLists.lua
 Reminders.lua
 API.lua
 UI.lua

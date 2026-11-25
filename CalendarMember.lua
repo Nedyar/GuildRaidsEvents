@@ -49,8 +49,9 @@ function Member.AnswerToSend(now)
                 local agreed = type(stored) == "table" and stored.ci == event.ci and stored.a or nil
                 if agreed == nil then
                     -- First look at this calendar event: an answer in the
-                    -- addon goes to it; with none, its answer comes to the addon.
-                    agreed = Events.Mine(event) and has or wanted
+                    -- addon goes to it; with none (or one taken back), its
+                    -- answer comes to the addon.
+                    agreed = States.Of(Events.Mine(event)) ~= "none" and has or wanted
                 end
                 local last = tried[key]
                 local taken = false

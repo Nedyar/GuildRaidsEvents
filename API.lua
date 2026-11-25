@@ -28,7 +28,9 @@
 -- (Unix time), signUps }. A sign-up: { name, guid, class, level, status,
 -- role, note, time (Unix time of the answer), manage ("confirmed",
 -- "standby", "out", "tentative" or nil), auto (the event set manage by itself),
--- external (brought in from outside the game) }.
+-- external (brought in from outside the game), calendar (made in the
+-- game's calendar by a member whose answer is not the addon's) }. A status
+-- "declined" also stands for a sign-up taken back.
 local _, ns = ...
 
 local Events = ns.Events
@@ -51,7 +53,7 @@ local function Copy(event, offset)
             name = signUp.name, guid = signUp.guid, class = signUp.class, level = signUp.level,
             status = STATUS_NAMES[signUp.st], role = signUp.ro and ROLE_NAMES[signUp.ro] or nil, note = signUp.no,
             time = signUp.at, manage = MANAGE_NAMES[signUp.status], auto = signUp.auto == true,
-            external = signUp.external == true,
+            external = signUp.external == true, calendar = signUp.calendar == true,
         }
     end
     return {

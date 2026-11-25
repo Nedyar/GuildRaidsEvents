@@ -294,7 +294,7 @@ H.check(view.SignUp:IsShown() and not view.SignUp:IsEnabled() and not view.Tenta
     and view.SignUp.reason == "Syncing the calendar...",
     "right after removing it, not signing up again while the game's calendar still has it")
 world:RunFor(30)
-H.eq(MineOf(member), nil, "removed")
+H.eq(ns.States.Of(MineOf(member)), "none", "removed")
 H.check(member.ns.Calendar.HiddenFromMe(member.ns.Events.Get(key)), "the event left the member's calendar, as the game does")
 member.ns.EventView.Refresh()
 H.check(view.SignUp:IsShown() and not view.SignUp:IsEnabled() and not view.Tentative:IsEnabled() and not view.Remove:IsShown(),
@@ -736,7 +736,7 @@ H.check(member.contextMenu ~= nil and H.MenuEntry(member.contextMenu, "Edit note
     "no one edits another's note")
 H.Click(view.Remove)
 world:RunFor(30)
-H.check(member.ns.Events.Mine(member.ns.Events.Get(scholo.key)) == nil
+H.check(ns.States.Of(member.ns.Events.Mine(member.ns.Events.Get(scholo.key))) == "none"
     and not member.ns.Events.IsModerator(member.ns.Events.Get(scholo.key), member.guid),
     "Remove sign-up: out of its list, a moderator no more, as in the game")
 member.ns.EventView.Refresh()

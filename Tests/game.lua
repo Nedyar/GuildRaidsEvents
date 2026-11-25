@@ -13,7 +13,8 @@
 -- What a player does in the game's calendar window: world:WindowEdit(id,
 -- fields), world:WindowDelete(id), world:WindowCreate(client, fields),
 -- world:WindowAnswer(client, id, status), world:WindowStatus(id, guid,
--- status) and world:WindowModerator(id, guid, on).
+-- status) and world:WindowModerator(id, guid, on). A member without the
+-- addon (world:AddMember) stands as client { guid = their GUID }.
 return function(H)
     H.NoOpMethods.SetMaxLines = true
     H.NoOpMethods.SetJustifyV = true
@@ -170,7 +171,8 @@ return function(H)
         calendar.events[calendar.nextID] = {
             id = calendar.nextID, title = fields.title, type = fields.type or 4, description = fields.description or "",
             start = { year = t.year, month = t.month, day = t.day, hour = t.hour, minute = t.min },
-            creator = client.guid, invites = { [client.guid] = { status = 3, modStatus = "CREATOR" } },
+            creator = client.guid,
+            invites = { [client.guid] = { status = 3, modStatus = "CREATOR", at = world:ServerTime() } },
         }
         Broadcast(world, "CALENDAR_NEW_EVENT", "CALENDAR_UPDATE_GUILD_EVENTS", "CALENDAR_UPDATE_EVENT_LIST")
         return calendar.nextID
@@ -181,7 +183,7 @@ return function(H)
         local calendar = Calendar(world)
         local event = calendar.events[id]
         if status then
-            event.invites[client.guid] = { status = status, modStatus = "" }
+            event.invites[client.guid] = { status = status, modStatus = "", at = world:ServerTime() }
         else
             event.invites[client.guid] = nil
             calendar.hidden[client.guid] = calendar.hidden[client.guid] or {}
@@ -416,18 +418,22 @@ return function(H)
                     locked = f.locked == true,
                     start = { year = f.date.year, month = f.date.month, day = f.date.day, hour = f.time.hour,
                         minute = f.time.minute },
-                    creator = client.guid, invites = { [client.guid] = { status = STATUS.Confirmed, modStatus = "CREATOR" } },
+                    creator = client.guid,
+                    invites = { [client.guid] = { status = STATUS.Confirmed, modStatus = "CREATOR", at = world:ServerTime() } },
                 }
                 calendar.events[event.id] = event
                 open = nil
                 Broadcast(world, "CALENDAR_NEW_EVENT", "CALENDAR_UPDATE_GUILD_EVENTS", "CALENDAR_UPDATE_EVENT_LIST")
             end,
+            -- Which events a client opened: client.opened[event ID] = times.
             OpenEvent = function(offset, day, index)
                 Log("OpenEvent")
                 local event = EventAt(offset, day, index)
                 if not event then
                     return false
                 end
+                client.opened = client.opened or {}
+                client.opened[event.id] = (client.opened[event.id] or 0) + 1
                 open = { id = event.id }
                 world:Schedule(0.2, function()
                     world:FireEvent(client, "CALENDAR_OPEN_EVENT", "GUILD_EVENT")
@@ -486,7 +492,7 @@ return function(H)
                 Log("EventSignUp")
                 local event = open and open.id and calendar.events[open.id]
                 if not Refused(event) and event and MyStatus(event) == STATUS.NotSignedup then
-                    event.invites[client.guid] = { status = STATUS.Signedup, modStatus = "" }
+                    event.invites[client.guid] = { status = STATUS.Signedup, modStatus = "", at = world:ServerTime() }
                     Broadcast(world, "CALENDAR_UPDATE_EVENT_LIST", "CALENDAR_UPDATE_INVITE_LIST")
                 end
             end,
@@ -494,7 +500,7 @@ return function(H)
                 Log("EventTentative")
                 local event = open and open.id and calendar.events[open.id]
                 if not Refused(event) and event and MyStatus(event) == STATUS.NotSignedup then
-                    event.invites[client.guid] = { status = STATUS.Tentative, modStatus = "" }
+                    event.invites[client.guid] = { status = STATUS.Tentative, modStatus = "", at = world:ServerTime() }
                     Broadcast(world, "CALENDAR_UPDATE_EVENT_LIST", "CALENDAR_UPDATE_INVITE_LIST")
                 end
             end,
@@ -510,9 +516,11 @@ return function(H)
                     Broadcast(world, "CALENDAR_UPDATE_EVENT_LIST", "CALENDAR_UPDATE_INVITE_LIST")
                 end
             end,
+            -- world.invitesLoading: an event's list not there yet, as it
+            -- may come a moment after the event opens.
             GetNumInvites = function()
                 local event = open and open.id and calendar.events[open.id]
-                return event and #Invites(event) or 0
+                return event and not world.invitesLoading and #Invites(event) or 0
             end,
             EventGetInvite = function(index)
                 local event = open and open.id and calendar.events[open.id]
@@ -524,6 +532,16 @@ return function(H)
                     name = entry.name, guid = entry.guid, inviteStatus = entry.invite.status,
                     modStatus = entry.invite.modStatus, inviteIsMine = entry.guid == client.guid,
                 }
+            end,
+            -- When a line answered (weekday 0: not known).
+            EventGetInviteResponseTime = function(index)
+                local event = open and open.id and calendar.events[open.id]
+                local entry = event and Invites(event)[index]
+                if not entry or not entry.invite.at then
+                    return { year = 0, month = 0, monthDay = 0, hour = 0, minute = 0, weekday = 0 }
+                end
+                local t = os.date("!*t", entry.invite.at)
+                return { year = t.year, month = t.month, monthDay = t.day, hour = t.hour, minute = t.min, weekday = t.wday }
             end,
             -- By its creator or a moderator, on anyone in the list but its
             -- creator; no click needed.

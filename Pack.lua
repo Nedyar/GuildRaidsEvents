@@ -60,7 +60,13 @@ Pack.LIMITS = {
 --       after cf: a record of an older version has none),
 --   ra = the roles it gave sign-ups, as organizer or moderator, or its own
 --       by itself: { [key] = { [GUID] = { ro = role, at = time } } }
---       (packed last, after mo: a record of an older version has none),
+--       (packed after mo: a record of an older version has none),
+--   cs = the sign-up lists of the guild's events as it last read them in
+--       the game's calendar, where they changed since anyone read them:
+--       { [calendar event ID] = { at = time read, cr = its creator's GUID,
+--       de = its description, l = { [GUID] = { s = calendar status, m =
+--       moderator, r = time of the answer, 0 unknown } } } } (packed last,
+--       after ra; CalendarLists.lua says which lines it keeps),
 --   xs = sign-ups made outside the game (by another addon, through the
 --       API) that it brought in: { [key] = { [GUID] = { st, ro, no, at } } },
 --   cf = the guild's options, from its guild master only: { t = time,
@@ -302,6 +308,52 @@ local function ReadRole(reader)
     return { ro = reader:Byte(), at = reader:UInt() }
 end
 
+-- The sign-up lists read in the calendar (cs), by calendar event ID.
+local function WriteLists(writer, lists)
+    local ids = SortedKeys(lists)
+    writer:UInt(#ids)
+    for _, id in ipairs(ids) do
+        local list = lists[id]
+        writer:UInt(id)
+        writer:UInt(list.at)
+        writer:Str(list.cr or "")
+        writer:Str(list.de or "")
+        local guids = SortedKeys(list.l)
+        writer:UInt(#guids)
+        for _, guid in ipairs(guids) do
+            local line = list.l[guid]
+            writer:Str(guid)
+            writer:Byte(line.s)
+            writer:Byte(line.m and PRESENT or ABSENT)
+            writer:UInt(line.r or 0)
+        end
+    end
+end
+
+local function ReadLists(reader)
+    local count = Count(reader, LIMITS.statusEvents, "sign-up lists")
+    if count == 0 then
+        return nil
+    end
+    local lists = {}
+    for _ = 1, count do
+        local id = reader:UInt()
+        local list = { at = reader:UInt(), cr = reader:Str(LIMITS.text), de = reader:Str(LIMITS.description), l = {} }
+        if list.cr == "" then
+            list.cr = nil
+        end
+        if list.de == "" then
+            list.de = nil
+        end
+        for _ = 1, Count(reader, LIMITS.perEvent, "sign-up lists") do
+            local guid = reader:Str(LIMITS.text)
+            list.l[guid] = { s = reader:Byte(), m = reader:Byte() == PRESENT, r = reader:UInt() }
+        end
+        lists[id] = list
+    end
+    return lists
+end
+
 function Pack.WriteRecord(writer, guid, record)
     local body = Pack.Writer()
     body:Str(guid)
@@ -314,6 +366,7 @@ function Pack.WriteRecord(writer, guid, record)
     WriteOptions(body, record)
     WriteNested(body, record.mo, WriteModerator)
     WriteNested(body, record.ra, WriteRole)
+    WriteLists(body, record.cs)
     writer:Str(body:Result())
 end
 
@@ -336,6 +389,9 @@ function Pack.ReadRecord(reader)
     end
     if not reader:AtEnd() then
         record.ra = ReadNested(reader, LIMITS.statusEvents, "roles", ReadRole)
+    end
+    if not reader:AtEnd() then
+        record.cs = ReadLists(reader)
     end
     -- Anything after this was added by a later version.
     return guid, record

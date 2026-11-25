@@ -96,6 +96,8 @@ local function ShowTooltip(owner, signUp, draggable)
     end
     if signUp.external then
         GameTooltip:AddLine(L["Signed up outside the game."], 0.6, 0.8, 1, true)
+    elseif signUp.calendar then
+        GameTooltip:AddLine(L["Signed up in the game's calendar, without the addon."], 0.6, 0.8, 1, true)
     end
     local event = Events.Get(shownKey)
     if event and (ns.Rights.MayIManage(event) or signUp.guid == ns.playerGUID) then

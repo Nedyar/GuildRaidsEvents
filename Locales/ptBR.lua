@@ -44,6 +44,7 @@ ns.RegisterLocale("ptBR", function(L)
     L["automatically"] = "automático"
     L["Level %d"] = "Nível %d"
     L["Signed up outside the game."] = "Inscrito fora do jogo."
+    L["Signed up in the game's calendar, without the addon."] = "Inscrito no calendário do jogo, sem o addon."
     L["Right-click for its menu."] = "Clique com o botão direito para abrir o menu."
     L["Drag it to another column to change its role."] = "Arraste para outra coluna para mudar a função."
     L["Role"] = "Função"

@@ -49,7 +49,10 @@
 --                          moderator deleted, copies;
 --   CalendarMember.lua     the player's own answers;
 --   CalendarStatuses.lua   the statuses of the sign-ups of the organizer's
---                          events.
+--                          events;
+--   CalendarLists.lua      the events' lists of sign-ups as the calendar has
+--                          them, read by anyone and shared (those made
+--                          there by members without the addon).
 -- This file holds the look at the calendar every few seconds (Tick), which
 -- runs the parts in order, and what the game says back.
 local _, ns = ...
@@ -57,9 +60,10 @@ local _, ns = ...
 local Calendar = {}
 ns.Calendar = Calendar
 -- The parts, filled by their files (loaded after this one).
-ns.CalendarRead, ns.CalendarSend, ns.CalendarOrganizer, ns.CalendarMember, ns.CalendarStatuses = {}, {}, {}, {}, {}
-local Read, Send, Organizer, Member, Statuses =
-    ns.CalendarRead, ns.CalendarSend, ns.CalendarOrganizer, ns.CalendarMember, ns.CalendarStatuses
+ns.CalendarRead, ns.CalendarSend, ns.CalendarOrganizer, ns.CalendarMember, ns.CalendarStatuses, ns.CalendarLists =
+    {}, {}, {}, {}, {}, {}
+local Read, Send, Organizer, Member, Statuses, Lists =
+    ns.CalendarRead, ns.CalendarSend, ns.CalendarOrganizer, ns.CalendarMember, ns.CalendarStatuses, ns.CalendarLists
 
 local Events = ns.Events
 
@@ -114,7 +118,7 @@ local lastRead = 0
 
 -- What changed in the calendar into the addon, our new events' IDs,
 -- deletions; then one step that opens an event (kept open for a change, an
--- answer, or the statuses of one event's sign-ups).
+-- answer, the statuses of one event's sign-ups, or reading its list).
 function Calendar.Tick()
     if Read.busy or not ns.playerGUID or not ns.Roster.ready then
         return
@@ -153,6 +157,9 @@ function Calendar.Tick()
         return
     end
     if Statuses.MirrorNext(now) then
+        return
+    end
+    if Lists.ReadNext() then
         return
     end
     Read.CloseKept()

@@ -7,7 +7,8 @@
 -- lets its moderators give it a status).
 local _, ns = ...
 
-local Calendar, Read, Organizer, Statuses = ns.Calendar, ns.CalendarRead, ns.CalendarOrganizer, ns.CalendarStatuses
+local Calendar, Read, Organizer, Statuses, Lists =
+    ns.Calendar, ns.CalendarRead, ns.CalendarOrganizer, ns.CalendarStatuses, ns.CalendarLists
 local Events, States = ns.Events, ns.States
 local Note = Calendar.Note
 local Plain = Read.Plain
@@ -17,12 +18,13 @@ local MIRROR_EVERY = 120     -- seconds between two looks at one event's sign-up
 local mirrored = {}          -- [key] = { at = GetTime(), signature } of the last look at its sign-ups
 
 -- The calendar status each sign-up of the event should have: [guid] =
--- status; the organizer's line too. And the organizer's sign-up, or nil.
+-- status; the organizer's line too. And the organizer's sign-up, or nil
+-- (none, or one taken back).
 local function WantedStatuses(event)
     local wanted, creator = {}, nil
     for _, signUp in ipairs(Events.SignUps(event)) do
         wanted[signUp.guid] = States.CalendarStatusOf(signUp)
-        if signUp.guid == event.owner then
+        if signUp.guid == event.owner and States.Of(signUp) ~= "none" then
             creator = signUp
         end
     end
@@ -205,6 +207,8 @@ local function Mirror(item)
             return
         end
         Organizer.ReconcileOpen(item.key)
+        -- Its list read too: sign-ups made in the calendar come in first.
+        Lists.Take(Events.Get(item.key) or item.event)
         local changes = StatusChanges(item.key, Events.Get(item.key) or item.event)
         local step = 0
         local function NextChange()
@@ -246,10 +250,10 @@ function Statuses.MirrorNext(now)
     return false
 end
 
--- The event open in the game's calendar window, when the player organizes
--- or moderates it:
--- what is changed there comes into the addon at once (the description and
--- the statuses show only on the open event).
+-- The event open in the game's calendar window: its list is read (any
+-- player's); when the player organizes or moderates it, what is changed
+-- there comes into the addon at once (the description and the statuses
+-- show only on the open event).
 function Statuses.ReadOpen()
     if Read.busy or Plain(ns.Try(C_Calendar.IsEventOpen)) ~= true then
         return
@@ -260,9 +264,12 @@ function Statuses.ReadOpen()
     end
     local start, title = Read.StartOf(info.time), Plain(info.title)
     for key, event in pairs(Events.All()) do
-        if ns.Rights.MayIManage(event) and event.ci ~= 0 and event.tm == start and event.ti == title then
-            Organizer.ReconcileOpen(key)
-            StatusChanges(key, Events.Get(key) or event)
+        if event.ci ~= 0 and event.tm == start and event.ti == title then
+            Lists.Take(event)
+            if ns.Rights.MayIManage(event) then
+                Organizer.ReconcileOpen(key)
+                StatusChanges(key, Events.Get(key) or event)
+            end
             return
         end
     end

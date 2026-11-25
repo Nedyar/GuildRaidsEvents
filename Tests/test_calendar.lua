@@ -258,7 +258,7 @@ world:RunFor(150)
 H.check(ns.States.IsTentative(ThirdIn(organizer)), "made tentative in the window: tentative in the addon")
 world:WindowAnswer(third, calendarID, nil)
 world:RunFor(30)
-H.eq(third.ns.Events.Mine(third.ns.Events.Get(key)), nil, "taking it back in the calendar takes it back in the addon")
+H.eq(third.ns.States.Of(third.ns.Events.Mine(third.ns.Events.Get(key))), "none", "taking it back in the calendar takes it back in the addon")
 world:ShowHidden()
 world:RunFor(30)
 Errors("the calendar window's answers")
@@ -835,3 +835,80 @@ H.check(world.calendar.events[forOfficer.ci].deleted and officer.ns.Events.Get(f
 world:RunFor(30)
 H.check(ns.Events.Get(forOfficer.key) == nil and member.ns.Events.Get(forOfficer.key) == nil, "for everyone")
 world.errors = {}
+
+H.section("Calendar: sign-ups of members without the addon")
+ns.EventForm.Open(nil)
+local openForm = ns.EventForm.Frame()
+openForm.TitleBox:SetText("Open to everyone")
+H.Click(openForm.Save)
+world:RunFor(30)
+local openEvent
+for _, one in ipairs(ns.Events.List("upcoming")) do
+    if one.ti == "Open to everyone" then
+        openEvent = one
+    end
+end
+H.check(openEvent ~= nil and openEvent.ci ~= 0, "an event of the organizer's, in the calendar")
+local _, outsider = world:AddMember("Outsider Name", nil, { rank = "Member", rankIndex = 3 })
+world:RosterChanged()
+world:RunFor(5)
+local online = {}
+for _, client in ipairs(world.clients) do
+    if client.loggedIn then
+        online[#online + 1] = client
+    end
+end
+local function OutsiderIn(client)
+    for _, signUp in ipairs(client.ns.Events.SignUps(client.ns.Events.Get(openEvent.key))) do
+        if signUp.guid == outsider then
+            return signUp
+        end
+    end
+end
+local elected = 0
+for _, client in ipairs(online) do
+    elected = elected + (client.ns.CalendarLists.Elected(openEvent.ci) and 1 or 0)
+end
+H.eq(elected, 1, "of the members online, one reads each event's list often")
+world:WindowAnswer({ guid = outsider }, openEvent.ci, 6)
+world:RunFor(150)
+local everyone = true
+for _, client in ipairs(online) do
+    local signUp = OutsiderIn(client)
+    everyone = everyone and signUp ~= nil and signUp.calendar == true and signUp.st == ns.Events.SIGNED
+end
+H.check(everyone, "a member without the addon signs up in the calendar: within two minutes, everyone sees it")
+local sharers = 0
+for _, client in ipairs(online) do
+    local own = client.ns.Data.GetOwnRecord(false)
+    local shared = own and own.cs and own.cs[openEvent.ci]
+    sharers = sharers + (shared and shared.l[outsider] and 1 or 0)
+end
+H.eq(sharers, 1, "one client shared the list with them")
+local openedByOthers = 0
+for _, client in ipairs(online) do
+    local sees = client.ns.Events.Get(openEvent.key)
+    if not client.ns.CalendarLists.Elected(openEvent.ci) and not client.ns.Rights.MayIManage(sees) then
+        openedByOthers = openedByOthers + ((client.opened or {})[openEvent.ci] or 0)
+    end
+end
+H.eq(openedByOthers, 0, "the others did not open the new event: they read it later, if at all")
+H.check(ns.Events.SetStatus(openEvent.key, outsider, ns.Events.CONFIRMED), "the organizer confirms them in the addon")
+world:RunFor(30)
+H.eq(world.calendar.events[openEvent.ci].invites[outsider].status, 3, "and the calendar has them confirmed")
+H.eq(OutsiderIn(member).status, ns.Events.CONFIRMED, "for everyone")
+world.invitesLoading = true
+world:RunFor(150)
+H.check(OutsiderIn(member) ~= nil, "a list read before it is all there is not shared: nobody loses them")
+world.invitesLoading = false
+world:WindowStatus(openEvent.ci, outsider, 5)
+world:RunFor(150)
+H.eq(OutsiderIn(member).status, ns.Events.STANDBY, "a status the organizer gives them in the game's window comes in too")
+world:WindowAnswer({ guid = outsider }, openEvent.ci, nil)
+world:RunFor(150)
+local gone = true
+for _, client in ipairs(online) do
+    gone = gone and OutsiderIn(client) == nil
+end
+H.check(gone, "they take it back in the calendar: gone for everyone")
+Errors("sign-ups of members without the addon")
