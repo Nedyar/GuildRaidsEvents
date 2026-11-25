@@ -53,6 +53,7 @@ ns.RegisterLocale("zhCN", function(L)
     L["Clear moderator"] = "取消管理员"
     L["Your role"] = "你的职责"
     L["Note"] = "备注"
+    L["Note: %s"] = "备注：%s"
     L["Back"] = "返回"
     L["Delete event"] = "删除活动"
     L["Deletes this event, for everyone."] = "为所有人删除此活动。"

@@ -53,6 +53,7 @@ ns.RegisterLocale("koKR", function(L)
     L["Clear moderator"] = "운영자 해제"
     L["Your role"] = "내 역할"
     L["Note"] = "메모"
+    L["Note: %s"] = "메모: %s"
     L["Back"] = "뒤로"
     L["Delete event"] = "일정 삭제"
     L["Deletes this event, for everyone."] = "이 일정을 모두에게서 삭제합니다."

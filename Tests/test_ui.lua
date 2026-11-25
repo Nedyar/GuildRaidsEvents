@@ -131,7 +131,7 @@ local function HasLine(lines, text)
     end
     return false
 end
-H.check(HasLine(tipLines, "late 10 min"), "pointing at the name shows the note")
+H.check(HasLine(tipLines, "Note: late 10 min"), "pointing at the name shows the note, after \"Note:\"")
 H.check(HasLine(tipLines, "Right-click for its menu.") and HasLine(tipLines, "Drag it to another column to change its role."),
     "and, being their own, that they may change its role")
 -- A long note with no spaces was cut short with "..." in the tooltip: a

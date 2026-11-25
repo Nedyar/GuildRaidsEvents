@@ -53,6 +53,7 @@ ns.RegisterLocale("esES", function(L)
     L["Clear moderator"] = "Quitar moderador"
     L["Your role"] = "Tu rol"
     L["Note"] = "Nota"
+    L["Note: %s"] = "Nota: %s"
     L["Back"] = "Volver"
     L["Delete event"] = "Borrar evento"
     L["Deletes this event, for everyone."] = "Borra este evento, para todos."

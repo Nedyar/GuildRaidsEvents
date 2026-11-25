@@ -90,7 +90,7 @@ local function ShowTooltip(owner, signUp, draggable)
         GameTooltip:AddLine(L["Level %d"]:format(signUp.level), 0.8, 0.8, 0.8)
     end
     if signUp.no then
-        for _, line in ipairs(EventView.NoteLines(signUp.no)) do
+        for _, line in ipairs(EventView.NoteLines(L["Note: %s"]:format(signUp.no))) do
             GameTooltip:AddLine(line, 1, 1, 1)
         end
     end

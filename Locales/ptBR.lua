@@ -53,6 +53,7 @@ ns.RegisterLocale("ptBR", function(L)
     L["Clear moderator"] = "Remover moderador"
     L["Your role"] = "Sua função"
     L["Note"] = "Nota"
+    L["Note: %s"] = "Nota: %s"
     L["Back"] = "Voltar"
     L["Delete event"] = "Excluir evento"
     L["Deletes this event, for everyone."] = "Exclui este evento, para todos."

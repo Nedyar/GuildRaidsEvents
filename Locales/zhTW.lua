@@ -53,6 +53,7 @@ ns.RegisterLocale("zhTW", function(L)
     L["Clear moderator"] = "取消管理員"
     L["Your role"] = "你的職責"
     L["Note"] = "備註"
+    L["Note: %s"] = "備註：%s"
     L["Back"] = "返回"
     L["Delete event"] = "刪除活動"
     L["Deletes this event, for everyone."] = "為所有人刪除此活動。"
