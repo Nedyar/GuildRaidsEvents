@@ -7,9 +7,9 @@
 -- Any member may open a guild event and read its list, as the game's
 -- calendar window shows it to anyone who views the event. So that not
 -- every client opens every event all the time, one client reads each event
--- every two minutes: of the members online who run the addon, the one the
--- event picks (Lists.Elected); the others read it every quarter of an
--- hour, in case that one does not. A list is shared only when it changed
+-- every two minutes, the members online who run the addon taking turns
+-- (Lists.Elected); the others read it every quarter of an hour, in case
+-- the one whose turn it is does not. A list is shared only when it changed
 -- since anyone shared it: by any other client, only if nobody shared it
 -- a moment later. Lists are also read whenever an event is open for
 -- another reason: its statuses looked at, or the player viewing it in the
@@ -30,9 +30,10 @@ local Events, States = ns.Events, ns.States
 local Note = Calendar.Note
 local Plain = Read.Plain
 
-local READ_EVERY = 120       -- seconds between two reads of one event, by the client it picks
-local OTHERS_EVERY = 900     -- and by any other
-local SHARE_WAIT = 5         -- seconds any other waits before it shares a list that changed
+local READ_EVERY = 120       -- seconds of each turn to read an event, and between two reads by whose turn it is
+local OTHERS_EVERY = 900     -- seconds between two reads by any other
+local SHARE_WAIT = 10        -- seconds any other waits before it shares a list that changed (a list
+                             -- shared goes out within seconds: LibGuildSync's quick changes)
 
 local lastRead = {}          -- [event ID] = server time this client last read it
 local soon = {}              -- [event ID] = true: read it next, and share it at once (Lists.ReadSoon)
@@ -44,22 +45,32 @@ function Lists.ReadSoon(calendarID)
     Calendar.TickSoon()
 end
 
--- Whether the player's client is the one that reads that calendar event
--- every READ_EVERY: of the members online who run the addon (who shared
--- their record), the one whose GUID with the event's ID hashes lowest.
-function Lists.Elected(calendarID)
+-- Whether it is the player's turn to read that calendar event (now: server
+-- time; now if nil). The members online who run the addon (who shared
+-- their record) take turns of READ_EVERY each, one after another, in an
+-- order drawn once from their GUIDs (by hash), so the turn always falls on
+-- the one who has gone longest without it; each event starts the round at
+-- another of them, so that one turn does not bring all the events. Every
+-- client works out the same, with nothing sent; when someone comes online
+-- or leaves, the round goes on with them in their place in the order.
+function Lists.Elected(calendarID, now)
     local guild = ns.Data.CurrentGuild(false)
-    local mine = ns.Pack.Hash(ns.playerGUID .. "/" .. calendarID)
+    local round, hashes = { ns.playerGUID }, { [ns.playerGUID] = ns.Pack.Hash(ns.playerGUID) }
     for guid, record in pairs(guild and guild.members or {}) do
         local member = ns.Roster.members[guid]
         if guid ~= ns.playerGUID and member and member.on and ns.Data.IsShareable(record) then
-            local hash = ns.Pack.Hash(guid .. "/" .. calendarID)
-            if hash < mine or (hash == mine and guid < ns.playerGUID) then
-                return false
-            end
+            round[#round + 1] = guid
+            hashes[guid] = ns.Pack.Hash(guid)
         end
     end
-    return true
+    table.sort(round, function(a, b)
+        if hashes[a] ~= hashes[b] then
+            return hashes[a] < hashes[b]
+        end
+        return a < b
+    end)
+    local turn = math.floor((now or ns.Now()) / READ_EVERY)
+    return round[(turn + calendarID) % #round + 1] == ns.playerGUID
 end
 
 -- When a line of the open event answered, as server time, or nil.
@@ -164,7 +175,7 @@ function Lists.Take(event, urgent)
     elseif urgent or Lists.Elected(event.ci) then
         return Share()
     end
-    -- Any other client waits a moment: the one the event picks may have
+    -- Any other client waits a moment: the one whose turn it is may have
     -- read it too, and its list be on its way.
     C_Timer.After(SHARE_WAIT, Share)
     return false
@@ -172,7 +183,7 @@ end
 
 -- The next event whose list to read: to come, in the player's calendar,
 -- and not read (by this client, or shared by anyone) for READ_EVERY when
--- the client is the one it picks, else OTHERS_EVERY (counted from when it
+-- it is the player's turn, else OTHERS_EVERY (counted from when it
 -- first saw it, so that a new event is not read by everyone at once); the
 -- longest overdue.
 local function EventToRead()

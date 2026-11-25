@@ -837,6 +837,8 @@ H.check(ns.Events.Get(forOfficer.key) == nil and member.ns.Events.Get(forOfficer
 world.errors = {}
 
 H.section("Calendar: sign-ups of members without the addon")
+-- From the start of a turn to read the lists (two minutes each).
+world:RunFor(120 - world:ServerTime() % 120 + 1)
 ns.EventForm.Open(nil)
 local openForm = ns.EventForm.Frame()
 openForm.TitleBox:SetText("Open to everyone")
@@ -865,11 +867,45 @@ local function OutsiderIn(client)
         end
     end
 end
-local elected = 0
-for _, client in ipairs(online) do
-    elected = elected + (client.ns.CalendarLists.Elected(openEvent.ci) and 1 or 0)
+-- Whose turn it is (a client), for an event, at a time.
+local function TurnOf(calendarID, at)
+    local whose = {}
+    for _, client in ipairs(online) do
+        if client.ns.CalendarLists.Elected(calendarID, at) then
+            whose[#whose + 1] = client
+        end
+    end
+    return #whose == 1 and whose[1] or nil
 end
-H.eq(elected, 1, "of the members online, one reads each event's list often")
+local turnStart = world:ServerTime() - world:ServerTime() % 120
+local turns, onlyOne = {}, true
+for k = 0, 2 * #online - 1 do
+    turns[k] = TurnOf(openEvent.ci, turnStart + k * 120 + 1)
+    onlyOne = onlyOne and turns[k] ~= nil
+end
+H.check(onlyOne, "at any time, one member online has the turn to read each event's list")
+local inRound, sameAgain = {}, true
+for k = 0, #online - 1 do
+    inRound[turns[k]] = true
+    sameAgain = sameAgain and turns[k + #online] == turns[k]
+end
+local roundSize = 0
+for _ in pairs(inRound) do
+    roundSize = roundSize + 1
+end
+H.check(roundSize == #online and sameAgain,
+    "they take turns, two minutes each: each once a round, so always the one longest without it")
+H.check(TurnOf(openEvent.ci + 1, turnStart + 1) ~= turns[0], "another event starts the round at another of them")
+-- To the end of this turn: the new event was read by whose turn it is
+-- (and its organizer's client), not by everyone at once.
+world:RunFor(120 - world:ServerTime() % 120 - 1)
+local openedByOthers = 0
+for _, client in ipairs(online) do
+    if not client.ns.Rights.MayIManage(client.ns.Events.Get(openEvent.key)) then
+        openedByOthers = openedByOthers + ((client.opened or {})[openEvent.ci] or 0)
+    end
+end
+H.check(openedByOthers <= 1, "a new event is not read by everyone at once")
 world:WindowAnswer({ guid = outsider }, openEvent.ci, 6)
 world:RunFor(150)
 local everyone = true
@@ -885,14 +921,6 @@ for _, client in ipairs(online) do
     sharers = sharers + (shared and shared.l[outsider] and 1 or 0)
 end
 H.eq(sharers, 1, "one client shared the list with them")
-local openedByOthers = 0
-for _, client in ipairs(online) do
-    local sees = client.ns.Events.Get(openEvent.key)
-    if not client.ns.CalendarLists.Elected(openEvent.ci) and not client.ns.Rights.MayIManage(sees) then
-        openedByOthers = openedByOthers + ((client.opened or {})[openEvent.ci] or 0)
-    end
-end
-H.eq(openedByOthers, 0, "the others did not open the new event: they read it later, if at all")
 H.check(ns.Events.SetStatus(openEvent.key, outsider, ns.Events.CONFIRMED), "the organizer confirms them in the addon")
 world:RunFor(30)
 H.eq(world.calendar.events[openEvent.ci].invites[outsider].status, 3, "and the calendar has them confirmed")

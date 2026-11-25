@@ -98,9 +98,11 @@ linked to the game's calendar.
 - **Members without the addon**: their sign-ups made in the game's calendar
   show in the event too, marked as such, as damage until the organizer or a
   moderator gives them a role, and count like any other. Any member's addon
-  reads the events' lists in the calendar and shares them: one addon online
-  reads each event every two minutes, the others now and then in case it
-  does not, and a list goes to the guild only when it changed.
+  reads the events' lists in the calendar and shares them: the members
+  online who have the addon take turns of two minutes to read each event,
+  in a fixed order, so the turn always goes to the one who has gone
+  longest without it (the others read it now and then, in case it does
+  not), and a list goes to the guild only when it changed.
 - **Events made without the addon**: a guild event someone creates in the
   game's calendar without the addon shows in everyone's list, as its
   creator's, with only what the calendar keeps (no places, level, place,
