@@ -170,7 +170,7 @@ local function CreateColumn(index)
         highlight:SetColorTexture(1, 1, 1, 0.08)
         button:SetScript("OnEnter", NameOnEnter)
         button:SetScript("OnLeave", GameTooltip_Hide)
-        button:SetScript("OnClick", UI.Clicked(NameOnClick))
+        button:SetScript("OnClick", NameOnClick)
         column.Names[row] = button
     end
     column.More = column:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
@@ -314,7 +314,7 @@ function EventView.Create(parent)
         else
             ns.Calendar.Cancel(event.key)
         end
-    end, true)
+    end)
     view.Cancel:SetPoint("RIGHT", view.Back, "LEFT", -4, 0)
     UI.SetTooltip(view.Cancel, function(self)
         return self:GetText()
@@ -337,7 +337,7 @@ function EventView.Create(parent)
     -- click creates it there (restricted: the call goes first in the click).
     view.Send = UI.Button(view, L["Create in calendar"], function()
         ns.Calendar.SendNow(shownKey)
-    end, true)
+    end)
     view.Send:SetPoint("RIGHT", view.Edit, "LEFT", -4, 0)
     UI.SetTooltip(view.Send, function(self)
         return self:GetText()
@@ -367,11 +367,10 @@ function EventView.Create(parent)
         end
     end)
     view:SetScript("OnHyperlinkLeave", GameTooltip_Hide)
-    local menu = UI.Clicked(StatusMenu)
     view:SetScript("OnHyperlinkClick", function(self, link)
         local signUp = LinkedSignUp(link)
         if signUp then
-            menu(self, signUp)
+            StatusMenu(self, signUp)
         end
     end)
     CreateControls()
@@ -494,12 +493,13 @@ function EventView.UpdateControls(signUps)
     view.Title:ClearAllPoints()
     view.Title:SetPoint("TOPLEFT", view.Icon, "TOPRIGHT", 8, -2)
     view.Title:SetPoint("RIGHT", first, "LEFT", -8, 0)
-    -- Restore event: off while the calendar makes it again, and at the game's
-    -- limit of events created (it would be created again).
-    local restoring = event.x and ns.Calendar.Restoring(event.key)
+    -- Cancel event: off while the calendar deletes it. Restore event: off
+    -- while the calendar makes it again, and at the game's limit of events
+    -- created (it would be created again).
+    local waiting = event.x and ns.Calendar.Restoring(event.key) or not event.x and ns.Calendar.Cancelling(event.key)
     local atLimit = event.x and organizer and ns.Calendar.AtLimit()
-    view.Cancel:SetEnabled(not restoring and not atLimit)
-    view.Cancel.reason = restoring and L["Syncing the calendar..."] or atLimit and ns.Calendar.LimitText() or nil
+    view.Cancel:SetEnabled(not waiting and not atLimit)
+    view.Cancel.reason = waiting and L["Syncing the calendar..."] or atLimit and ns.Calendar.LimitText() or nil
     -- A locked event takes no answers from members; its creator still
     -- changes their own, as the game's calendar lets them.
     local locked = event.lk and not organizer

@@ -13,6 +13,7 @@ local Note = Calendar.Note
 local Plain = Read.Plain
 
 local DELETE_RETRY = 30      -- seconds between two tries to delete one calendar event
+local BLOCKED_WAIT = 600     -- and more after the game refused it (it wanted a click)
 
 -- Our calendar events found missing: [key] = { at = GetTime(), reads }.
 -- Deleted only if still missing once the calendar's data came again (asked
@@ -21,10 +22,6 @@ local missing = {}
 local seen = {}              -- [key] = true: its calendar event was seen in this session
 local deleteTried = {}       -- [event ID] = GetTime() of the last try to delete it
 local adoptTried = {}        -- [event ID] = true: taken into the addon once already
--- The game refused a deletion with no click: deletions then wait, with the
--- event kept open, for the organizer's next click; one done in a click
--- lets them try with no click again.
-Organizer.needsClick = false
 
 -- Both ways ---------------------------------------------------------------------------------------
 
@@ -301,57 +298,73 @@ local function ToDelete()
     end
 end
 
--- Deletes the open event: whether it was sent, and whether the game
--- refused the call (it wants a click for it).
+-- Deletes the open event (main: one of our events, not a copy): whether it
+-- was sent, and why not (the game's words).
 local function RemoveOpen(key, entry, main)
     deleteTried[entry.id] = GetTime()
     local canRemove = ns.Try(C_Calendar.ContextMenuEventCanRemove, entry.offset, entry.day, entry.index)
     if Plain(canRemove) == false then
-        if main then
-            Calendar.lastError = L["The game's calendar does not let this event be deleted now. Try again after /reload."]
-        end
+        local event = Events.Get(key)
+        local why = event and event.owner ~= ns.playerGUID
+            and L["The game's calendar does not let you delete this event."]
+            or L["The game's calendar does not let this event be deleted now. Try again after /reload."]
         Note("delete", "not sent: the game says it cannot be deleted now")
-        return false, false
+        return false, why
     end
     local item
     if main then
         item = Send.Put("delete", key)
         Read.State("gone")[key] = true
     end
-    local sent = Send.Try("delete", item, function()
+    if Send.Try("delete", item, function()
         C_Calendar.ContextMenuSelectEvent(entry.offset, entry.day, entry.index)
         C_Calendar.ContextMenuEventRemove()
-    end)
-    return sent, not sent and Send.Blocked()
+    end) then
+        return true
+    end
+    if Send.Blocked() then
+        -- Refused with no click: tried again a while later.
+        deleteTried[entry.id] = GetTime() + BLOCKED_WAIT
+    end
+    return false, Calendar.lastError
 end
 
 -- Deletes one calendar event (no click needed): key, the event it is or a
 -- copy of. The game deletes only the open event (as its own window does,
 -- on the event selected): when it is not, it is opened first and deleted
--- a moment later. Whether it was deleted at once.
-function Organizer.Delete(key, entry, main)
+-- a moment later. failed(why), when it was not deleted. Returns whether it
+-- was deleted at once, and whether it was tried (not when another step has
+-- the open event, or it was tried a moment ago).
+function Organizer.Delete(key, entry, main, failed)
     local last = deleteTried[entry.id]
     if last and GetTime() - last < DELETE_RETRY then
-        return false
+        return false, false
     elseif Read.IsOpen(entry) then
-        return (RemoveOpen(key, entry, main))
+        local sent, why = RemoveOpen(key, entry, main)
+        if not sent and failed then
+            failed(why)
+        end
+        return sent, true
     elseif Read.busy then
-        return false
+        return false, false
     end
     deleteTried[entry.id] = GetTime()
     Read.busy = true
     Read.openKey = nil
     Read.Open(entry, function(ok)
-        if ok and select(2, RemoveOpen(key, entry, main)) then
-            -- Refused with no click: the next deletions wait for one.
-            Organizer.needsClick = true
+        local sent, why = false, L["The game's calendar did not answer. Try again."]
+        if ok then
+            sent, why = RemoveOpen(key, entry, main)
+        end
+        if not sent and failed then
+            failed(why)
         end
         Read.WaitDone(function()
             Read.Close()
             Read.Finish()
         end)
     end)
-    return false
+    return false, true
 end
 
 -- A delete asked for in a click (Cancel event) is tried at once.
@@ -359,94 +372,34 @@ function Organizer.ForgetTried(calendarID)
     deleteTried[calendarID] = nil
 end
 
--- A step of the look at the calendar (Tick): deletes what is to delete,
--- unless the game wants a click for it. Whether a step goes on.
+-- A step of the look at the calendar (Tick): deletes what is to delete.
+-- Whether a step goes on.
 function Organizer.DeleteNoClick()
     local key, entry, main = ToDelete()
-    if Organizer.needsClick and key == nil then
-        -- Nothing left to delete (gone some other way): the next one is
-        -- tried with no click again.
-        Organizer.needsClick = false
-    end
-    if Organizer.needsClick then
-        return false
-    end
     return key ~= nil and (Organizer.Delete(key, entry, main) or Read.busy)
 end
 
--- Keeps a calendar event open, so a click can change or delete it: openAs
--- is what Read.openKey says while it is (our event's key, or "copy:" and
--- the event ID for a copy). Whether it is.
-local function KeepOpenEntry(openAs, entry, onOpen)
-    if Read.openKey ~= openAs or Read.OpenTitle() == nil then
-        Read.busy = true
-        Read.Open(entry, function(ok)
-            Read.openKey = ok and openAs or nil
-            if ok and onOpen then
-                onOpen()
-            end
-            Read.Finish()
-            ns.Fire("CalendarPending")
-        end)
-    end
-    return true
-end
-
--- Keeps one of our events open, so a click can change it: whether it is.
+-- Keeps an event's calendar event open (no click needed), so the click that
+-- saves a change of it changes the calendar too (Read.openKey says which).
+-- Whether it is, or is being opened.
 function Organizer.KeepOpen(key)
     local event = Events.Get(key)
     local entry = event and Read.Find(event.ci)
     if not entry then
         return false
     end
-    return KeepOpenEntry(key, entry, function()
-        Organizer.ReconcileOpen(key)
-    end)
-end
-
--- What the next click would send that needs its event open: the first of
--- our events whose change waits for a click (a deletion too, when the game
--- wants a click for it, a copy's as well). { openAs, entry, onOpen }, or
--- nil.
-function Organizer.ToKeepOpen()
-    for _, pending in ipairs(Calendar.Pending()) do
-        if pending.kind == "update" or pending.kind == "delete" and Organizer.needsClick then
-            local entry = Read.Find(pending.event.ci)
-            if entry then
-                local key = pending.key
-                return { openAs = key, entry = entry, onOpen = function()
-                    Organizer.ReconcileOpen(key)
-                end }
+    if Read.openKey ~= key or Read.OpenTitle() == nil then
+        Read.busy = true
+        Read.Open(entry, function(ok)
+            Read.openKey = ok and key or nil
+            if ok then
+                Organizer.ReconcileOpen(key)
             end
-        end
+            Read.Finish()
+            ns.Fire("CalendarPending")
+        end)
     end
-    if Organizer.needsClick then
-        local key, entry, main = ToDelete()
-        if key and not main then
-            return { openAs = "copy:" .. entry.id, entry = entry }
-        end
-    end
-end
-
--- A step of the look at the calendar (Tick): keeps that event open, so the
--- next click sends its change. Whether it is.
-function Organizer.KeepOpenFor(target)
-    return KeepOpenEntry(target.openAs, target.entry, target.onOpen)
-end
-
--- In a click (Calendar.RunPending): deletes the copy kept open, when the
--- game wanted a click for it. The pending item it did, or nil.
-function Organizer.DeleteKept()
-    if not Organizer.needsClick then
-        return nil
-    end
-    local key, entry, main = ToDelete()
-    if key and not main and Read.openKey == "copy:" .. entry.id and Read.IsOpen(entry)
-            and RemoveOpen(key, entry, false) then
-        Organizer.needsClick = false
-        Read.openKey = nil
-        return { kind = "delete", key = key }
-    end
+    return true
 end
 
 -- One of the player's events deleted from the addon (Calendar.Delete):

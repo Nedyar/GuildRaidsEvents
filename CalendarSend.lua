@@ -1,10 +1,10 @@
 -- CalendarSend.lua: what the player's clicks send to the game's calendar
--- (see Calendar.lua): a new event (the form's Create), a change (Save), a
--- cancelled event (Cancel event) or one restored (Restore event), next
--- week's event of a weekly one (Create in calendar), and the change of
--- their events that waits for a click (any click in the addon's window,
--- Calendar.OnClick). And the outbox: what was sent and has not shown in
--- the calendar yet.
+-- (see Calendar.lua): a new event (the form's Create), a change (Save), an
+-- event cancelled (Cancel event) or restored (Restore event), and next
+-- week's event of a weekly one (Create in calendar). The calendar first,
+-- always: the addon takes a change only once the calendar has taken it,
+-- and nothing when it refuses it. And the outbox: what was sent and has not
+-- shown in the calendar yet.
 local _, ns = ...
 local L = ns.L
 
@@ -12,11 +12,12 @@ local Calendar, Read, Send, Organizer = ns.Calendar, ns.CalendarRead, ns.Calenda
 local Events = ns.Events
 local Note = Calendar.Note
 
-local IN_FLIGHT = 60         -- seconds a change sent may take to show in the calendar
-local CREATE_TIMEOUT = 8     -- seconds the calendar may take to answer a new or restored event
+local IN_FLIGHT = 60         -- seconds a change or deletion sent may take to show in the calendar
+local ANSWER_TIMEOUT = 8     -- seconds the calendar may take to show a new, restored or cancelled event
 local RECREATE_AFTER = 600   -- seconds before an event sent but never seen is created again
 
 local REFUSED = "The game's calendar refused the change. Click again to retry."
+local NO_ANSWER = "The game's calendar did not answer. Try again."
 
 -- The outbox ------------------------------------------------------------------------------------
 -- What was sent to the game's calendar and has not shown there yet, one
@@ -24,13 +25,14 @@ local REFUSED = "The game's calendar refused the change. Click again to retry."
 --   "new"      the form's new event (no key): fields, ti, tm, done, failed;
 --   "restore"  a cancelled event of ours made again: ti, tm;
 --   "create"   next week's event of a weekly one, sent with its button;
---   "update"   a change: previous = what the calendar and the addon had
---              agreed before it (mine: the event is the player's);
---   "delete"   its calendar event deleted.
--- An item goes once the calendar shows it (Send.Landed). A new or restored
--- event not shown after CREATE_TIMEOUT is given up (TakePending); the
--- others stop counting after IN_FLIGHT. If the game refuses what was sent,
--- its item is taken back (Undo): what it changed is put back.
+--   "cancel"   an event whose calendar event is being deleted (Cancel
+--              event): ci, reads (Read.reads then), started;
+--   "update"   a change of an event's calendar event;
+--   "delete"   one of our calendar events deleted.
+-- An item goes once the calendar shows it (Send.Landed). A new, restored or
+-- cancelled event not shown after ANSWER_TIMEOUT is given up (TakePending);
+-- the others stop counting after IN_FLIGHT. If the game refuses what was
+-- sent, its item is taken back (Undo).
 
 local items = {}
 -- The item of the call going on (Send.Try): the game refuses a call while
@@ -38,16 +40,18 @@ local items = {}
 local current
 local blocked = false  -- the game refused one of our calls (set during the call)
 
+local WAITED = { new = true, restore = true, cancel = true }  -- given up after ANSWER_TIMEOUT, not IN_FLIGHT
+
 local function Slot(kind, key)
     return kind .. "|" .. (key or "")
 end
 
 local function Expired(item)
-    return item.kind ~= "new" and item.kind ~= "restore" and GetTime() - item.at >= IN_FLIGHT
+    return not WAITED[item.kind] and GetTime() - item.at >= IN_FLIGHT
 end
 
 function Send.Put(kind, key, item)
-    -- Those no longer counting go (an officer's changes, which nothing
+    -- Those no longer counting go (a moderator's changes, which nothing
     -- looks at again).
     for slot, other in pairs(items) do
         if Expired(other) then
@@ -72,7 +76,8 @@ function Send.Item(kind, key)
 end
 
 -- Whether a change ("update") or deletion ("delete") of the event was just
--- sent: either, when kind is nil.
+-- sent: either, when kind is nil. While it is, what the calendar shows of
+-- it is not taken into the addon.
 function Send.InFlight(key, kind)
     if kind then
         return Send.Item(kind, key) ~= nil
@@ -85,32 +90,37 @@ function Send.Landed(kind, key)
     items[Slot(kind, key)] = nil
 end
 
--- Whether a new or restored event waits for the calendar's answer.
+-- Whether a new, restored or cancelled event waits for the calendar.
 function Send.Waiting()
     for _, item in pairs(items) do
-        if item.kind == "new" or item.kind == "restore" then
+        if WAITED[item.kind] then
             return true
         end
     end
     return false
 end
 
--- Takes back what was sent (why: the game's words, for the form).
+-- Takes back what was sent (why: the game's words, for the form or the
+-- window). A change taken back leaves the addon as it was; the calendar's
+-- values come into it again if it already had the change (Organizer.Watch).
 local function Undo(item, why)
     local slot = Slot(item.kind, item.key)
     if items[slot] ~= item then
         return
     end
     items[slot] = nil
-    if item.kind == "update" and item.mine then
-        Read.State("known")[item.key] = item.previous
-    elseif item.kind == "create" then
+    if item.kind == "create" then
         -- Sent with its button: it waits for it again.
         Read.State("created")[item.key] = nil
     elseif item.kind == "new" and item.failed then
         item.failed(why)
     end
+    if WAITED[item.kind] or item.kind == "create" then
+        Calendar.lastError = why or Calendar.lastError
+        ns.Fire("CalendarPending")
+    end
 end
+Send.Undo = Undo
 
 -- Takes back every item of those kinds.
 local function UndoAll(kinds, why)
@@ -125,16 +135,9 @@ local function UndoAll(kinds, why)
     end
 end
 
--- A change of the event about to be sent: its item, with what was agreed
--- before (the first change's, while one is still on its way).
-local function PutUpdate(key, mine)
-    local earlier = Send.Item("update", key)
-    return Send.Put("update", key, { mine = mine, previous = earlier and earlier.previous or Read.State("known")[key] })
-end
-
 -- Forgets every item of an event (deleted from the addon).
 function Send.Forget(key)
-    for _, kind in ipairs({ "restore", "create", "update", "delete" }) do
+    for _, kind in ipairs({ "restore", "create", "cancel", "update", "delete" }) do
         Send.Landed(kind, key)
     end
 end
@@ -168,10 +171,8 @@ function Send.Blocked()
     return blocked
 end
 
--- The game refused one of our calls (ADDON_ACTION_BLOCKED): what it was
--- part of, when it was one of Send.Try's, is taken back, and the changes
--- and deletions sent wait again. A new or restored event sent before is
--- left alone: the call refused was another.
+-- The game refused one of our calls (ADDON_ACTION_BLOCKED, during the
+-- call): what it was part of, when it was one of Send.Try's, is taken back.
 function Send.OnBlocked(action)
     blocked = true
     Note(tostring(action), "blocked by the game")
@@ -179,14 +180,14 @@ function Send.OnBlocked(action)
     if current then
         Undo(current, Calendar.lastError)
     end
-    UndoAll({ update = true, delete = true }, Calendar.lastError)
     ns.Fire("CalendarPending")
 end
 
 -- The calendar refused a change (CALENDAR_UPDATE_ERROR, text: its words;
 -- count with CALENDAR_ERROR_EVENTS_EXCEEDED, its limit of events created):
--- what waits to be created is given up (the form or the event says why),
--- and the changes and deletions sent wait again.
+-- what waits for the calendar is given up (the form or the window says
+-- why). A change or deletion sent lands or stops counting as usual: if the
+-- calendar did not take it, its values come into the addon again.
 function Send.OnError(message, count, text)
     local why = text
     if message == "CALENDAR_ERROR_EVENTS_EXCEEDED" then
@@ -196,8 +197,7 @@ function Send.OnError(message, count, text)
         why = Calendar.LimitText()
         Note("create", "refused by the game: its limit of events created")
     end
-    UndoAll({ new = true, restore = true, create = true }, why)
-    UndoAll({ update = true, delete = true }, why)
+    UndoAll({ new = true, restore = true, create = true, cancel = true }, why)
     ns.Fire("CalendarPending")
 end
 
@@ -221,6 +221,12 @@ function Calendar.CreateNow(event)
     C_Calendar.CreateGuildSignUpEvent()
     Fill(event)
     C_Calendar.AddEvent()
+end
+
+-- Whether an event has a calendar event to change: to come, not cancelled,
+-- and in the player's calendar.
+local function InCalendar(event)
+    return not event.x and event.ci ~= 0 and event.tm > Events.Now() and Read.Find(event.ci) ~= nil
 end
 
 -- What the clicks send -----------------------------------------------------------------------------
@@ -252,8 +258,8 @@ function Calendar.Creating()
     return Send.Item("new") ~= nil
 end
 
--- The form changing one of our events (EventForm.lua) keeps it open, so
--- the click that saves it changes the calendar too: key, or nil once the
+-- The form changing an event (EventForm.lua) keeps its calendar event open,
+-- so the click that saves it changes the calendar too: key, or nil once the
 -- form closes; still(), whether the form still changes it.
 local preparedKey, stillPrepared
 
@@ -277,50 +283,94 @@ function Send.KeepPrepared()
     return preparedKey ~= nil and Organizer.KeepOpen(preparedKey)
 end
 
--- In the click that saves a change (EventForm.lua), before our record has
--- it: whether the calendar took it. If not, it goes with a later click
--- (the organizer's, for an officer the game does not let change it).
-function Calendar.UpdateFirst(key, fields)
+-- Why the form's Save is off for a change of that event, or nil: its
+-- calendar event is not open yet (the form opens it), or the game does not
+-- let the player change it. An event with no calendar event to change
+-- changes in the addon only.
+function Calendar.EditBlocked(key)
     local event = Events.Get(key)
-    if not event or event.ci == 0 or Read.openKey ~= key or Read.OpenTitle() == nil or Read.ActionPending() then
-        Note("update", "not sent: the event was not open yet")
-        return false
+    if not event or not InCalendar(event) then
+        return nil
+    elseif Read.openKey ~= key or Read.OpenTitle() == nil or Read.ActionPending() then
+        return L["Syncing the calendar..."]
+    elseif event.owner ~= ns.playerGUID and Read.Plain(ns.Try(C_Calendar.EventCanEdit)) ~= true then
+        return L["The game's calendar does not let you change this event."]
     end
-    local mine = event.owner == ns.playerGUID
-    if not mine and Read.Plain(ns.Try(C_Calendar.EventCanEdit)) ~= true then
-        return false
-    end
-    local new = { ti = fields.ti, tm = fields.tm, ty = fields.ty, de = fields.de or "", lk = fields.lk == true }
-    local item = PutUpdate(key, mine)
-    if mine then
-        Read.State("known")[key] = new
-    end
-    return Send.Try("update", item, function()
-        Fill(new)
-        C_Calendar.UpdateEvent()
-    end)
 end
 
--- The click that cancels an event (EventView.lua): its calendar event goes
--- first, inside the click when it is open, then the event is cancelled in
--- the addon. If the game does not take it, it is tried again by itself, and
--- the organizer's client deletes it when an officer cannot. Returns whether
--- the calendar event went inside the click.
-function Calendar.Cancel(key)
-    Read.State("byCalendar")[key] = nil
+-- In the click that saves a change (EventForm.lua), first thing: whether
+-- the calendar took it (or has nothing to take), and why not. The addon
+-- takes the change only if it did.
+function Calendar.UpdateFirst(key, fields)
     local event = Events.Get(key)
-    local entry = event and Read.Find(event.ci)
-    local deleted = false
-    if entry then
-        Organizer.ForgetTried(entry.id)
-        deleted = Organizer.Delete(key, entry, true)
-        if deleted then
-            -- Deleted in a click: the next deletions try with no click again.
-            Organizer.needsClick = false
-        end
+    if not event then
+        return false
+    elseif not InCalendar(event) then
+        return true
     end
-    Events.Cancel(key)
-    return deleted
+    local why = Calendar.EditBlocked(key)
+    if why then
+        Note("update", "not sent: " .. why)
+        return false, why
+    end
+    local new = { ti = fields.ti, tm = fields.tm, ty = fields.ty, de = fields.de or "", lk = fields.lk == true }
+    local item = Send.Put("update", key)
+    if event.owner == ns.playerGUID then
+        Read.State("known")[key] = new
+    end
+    if Send.Try("update", item, function()
+        Fill(new)
+        C_Calendar.UpdateEvent()
+    end) then
+        return true
+    end
+    return false, Calendar.lastError
+end
+
+-- Starts deleting a cancelled event's calendar event (no click needed; it
+-- is opened first when it is not open). Whether it started.
+local function StartCancel(item)
+    local event = Events.Get(item.key)
+    local entry = event and Read.Find(item.ci)
+    if not entry then
+        return false
+    end
+    -- Started before the call: the calendar may answer during it.
+    item.started = true
+    local _, started = Organizer.Delete(item.key, entry, event.owner == ns.playerGUID, function(why)
+        Undo(item, why)
+    end)
+    if items[Slot("cancel", item.key)] == item then
+        item.started = started
+    end
+    return started
+end
+
+-- The click that cancels an event (EventView.lua): the calendar first. Its
+-- calendar event is deleted, and the event is cancelled in the addon once
+-- the calendar no longer has it; if the game refuses it, nothing changes
+-- and the window says why. An event not in the calendar is cancelled in the
+-- addon at once. Whether it was cancelled or sent.
+function Calendar.Cancel(key)
+    local event = Events.Get(key)
+    if not event or event.x or Send.Item("cancel", key) then
+        return false
+    end
+    local entry = Read.Find(event.ci)
+    if event.ci == 0 or not entry then
+        return Events.Cancel(key)
+    end
+    Read.State("byCalendar")[key] = nil
+    Organizer.ForgetTried(entry.id)
+    local item = Send.Put("cancel", key, { ci = event.ci, reads = Read.reads })
+    StartCancel(item)
+    ns.Fire("CalendarPending")
+    return Send.Item("cancel", key) ~= nil
+end
+
+-- Whether that event waits for the calendar to delete it.
+function Calendar.Cancelling(key)
+    return Send.Item("cancel", key) ~= nil
 end
 
 -- The click that restores a cancelled event (EventView.lua): for its
@@ -369,7 +419,7 @@ function Calendar.Delete(key)
     return Events.Delete(key)
 end
 
--- What waits for the organizer ---------------------------------------------------------------------
+-- What the player's own events need in the calendar ---------------------------------------------
 
 -- What one of the player's own events needs in the calendar: "create",
 -- "update", "delete" or nil.
@@ -390,9 +440,10 @@ local function KindOf(key, event, now)
     end
 end
 
--- The changes the player's own events wait for in the calendar, in order:
--- { kind = "create", "update" or "delete", key, event }. A creation waits
--- for its own button (Calendar.SendNow); the others go with any click.
+-- What the player's own events and the calendar do not agree on yet, in
+-- order: { kind = "create", "update" or "delete", key, event }. A creation
+-- waits for its own button (Calendar.SendNow); a deletion goes by itself
+-- (Organizer.DeleteNoClick); a change is only on its way (Calendar.UpdateFirst).
 function Calendar.Pending()
     local list = {}
     if not ns.playerGUID or not ns.Roster.ready or not Read.scanned then
@@ -414,43 +465,6 @@ function Calendar.Pending()
         return a.key < b.key
     end)
     return list
-end
-
--- Does the first change the player's own events wait for that can go now:
--- call it first thing in a click of the player. Returns what it did (the
--- pending item), or nil.
-function Calendar.RunPending()
-    if not Read.scanned or Read.ActionPending() then
-        return nil
-    end
-    -- Where the events are now: the player may have moved the calendar's month.
-    Read.Scan()
-    for _, item in ipairs(Calendar.Pending()) do
-        local event = item.event
-        -- A creation waits for its own button (Calendar.SendNow): with any
-        -- click, the game would refuse so many so fast.
-        if item.kind == "update" and Read.openKey == item.key and Read.OpenTitle() ~= nil then
-            -- The event opened beforehand, with no click (Tick).
-            local sent = PutUpdate(item.key, true)
-            Organizer.Agree(item.key, event)
-            if Send.Try("update", sent, function()
-                Fill(event)
-                C_Calendar.UpdateEvent()
-            end) then
-                return item
-            end
-            return nil
-        elseif item.kind == "delete" then
-            local entry = Read.Find(event.ci)
-            if entry and Organizer.Delete(item.key, entry, true) then
-                Organizer.needsClick = false
-                return item
-            end
-        end
-    end
-    -- A copy of an event, kept open because the game refused deleting it
-    -- with no click.
-    return Organizer.DeleteKept()
 end
 
 -- Whether one of the player's events waits to be created in the calendar
@@ -489,19 +503,11 @@ function Calendar.SendNow(key)
     return false
 end
 
--- For the clicks of the addon's window (UI.Clicked): the first thing they
--- do, so a change waiting for the organizer goes out with them.
-function Calendar.OnClick()
-    local ok, done = pcall(Calendar.RunPending)
-    if ok and done then
-        ns.Fire("CalendarPending")
-    end
-end
+-- What waits for the calendar -----------------------------------------------------------------
 
--- New and restored events -----------------------------------------------------------------------
-
--- The events sent to be created (Create, Restore event), into the addon
--- once the calendar has them; given up after a while, the addon unchanged.
+-- The events sent to be created (Create, Restore event) into the addon,
+-- and those cancelled, once the calendar has them or no longer has them;
+-- given up after a while, the addon unchanged.
 function Send.TakePending()
     local used, clock = Read.UsedIDs(), GetTime()
     local item = Send.Item("new")
@@ -519,37 +525,48 @@ function Send.TakePending()
             if item.done then
                 item.done(key)
             end
-        elseif clock - item.at > CREATE_TIMEOUT then
-            Send.Landed("new")
-            Calendar.lastError = L["The game's calendar did not answer. Try again."]
-            if item.failed then
-                item.failed(Calendar.lastError)
-            end
+        elseif clock - item.at > ANSWER_TIMEOUT then
+            Undo(item, L[NO_ANSWER])
         end
     end
-    local restores = {}
+    local waiting = {}
     for _, other in pairs(items) do
-        if other.kind == "restore" then
-            restores[#restores + 1] = other
+        if other.kind == "restore" or other.kind == "cancel" then
+            waiting[#waiting + 1] = other
         end
     end
-    for _, restore in ipairs(restores) do
-        local key = restore.key
-        local id = Read.Landing(restore.ti, restore.tm, used)
-        if id then
-            Send.Landed("restore", key)
-            used[id] = true
-            for _, name in ipairs({ "gone", "known", "byCalendar", "created" }) do
-                Read.State(name)[key] = nil
+    for _, other in ipairs(waiting) do
+        local key = other.key
+        if other.kind == "restore" then
+            local id = Read.Landing(other.ti, other.tm, used)
+            if id then
+                Send.Landed("restore", key)
+                used[id] = true
+                for _, name in ipairs({ "gone", "known", "byCalendar", "created" }) do
+                    Read.State(name)[key] = nil
+                end
+                Events.Cancel(key, false)
+                Organizer.Linked(key, id)
+                Organizer.Agree(key, Events.Get(key))
+                Note("create", "made again in the calendar, so restored in the addon")
+            elseif clock - other.at > ANSWER_TIMEOUT then
+                Undo(other, L[NO_ANSWER])
             end
-            Events.Cancel(key, false)
-            Organizer.Linked(key, id)
-            Organizer.Agree(key, Events.Get(key))
-            Note("create", "made again in the calendar, so restored in the addon")
-        elseif clock - restore.at > CREATE_TIMEOUT then
-            Send.Landed("restore", key)
-            Calendar.lastError = L["The game's calendar did not answer. Try again."]
+        elseif not Events.Get(key) then
+            Send.Landed("cancel", key)
+        elseif Read.reads > other.reads and Read.Find(other.ci) == nil then
+            -- Gone from the calendar (its data came again since): cancelled.
+            Send.Landed("cancel", key)
+            Events.Cancel(key)
+            Note("delete", "gone from the calendar, so cancelled in the addon")
             ns.Fire("CalendarPending")
+        elseif not other.started then
+            -- Another step had the open event: started now.
+            if not StartCancel(other) and not Read.busy then
+                Undo(other, L[REFUSED])
+            end
+        elseif clock - other.at > ANSWER_TIMEOUT + 8 then
+            Undo(other, L[NO_ANSWER])
         end
     end
 end

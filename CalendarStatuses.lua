@@ -114,11 +114,11 @@ end
 
 -- The organizer's next event whose sign-ups to look at: one whose
 -- statuses changed in the addon since the last look, or, while the game's
--- calendar window is closed (and unless changedOnly), not looked at for a
--- while (a sign-up or a change made in the calendar).
-local function EventToMirror(now, changedOnly)
+-- calendar window is closed, not looked at for a while (a sign-up or a
+-- change made in the calendar).
+local function EventToMirror(now)
     local best
-    local again = not changedOnly and not Read.WindowShown()
+    local again = not Read.WindowShown()
     for key, event in pairs(Events.All()) do
         local entry = Read.Find(event.ci)
         if entry and event.owner == ns.playerGUID and not event.x and event.tm > Events.Now() then
@@ -171,10 +171,9 @@ local function Mirror(item)
 end
 
 -- A step of the look at the calendar (Tick): the statuses of the next
--- event that needs a look (changedOnly: only one whose statuses changed in
--- the addon). Whether a step goes on.
-function Statuses.MirrorNext(now, changedOnly)
-    local item = EventToMirror(now, changedOnly)
+-- event that needs a look. Whether a step goes on.
+function Statuses.MirrorNext(now)
+    local item = EventToMirror(now)
     if item then
         Mirror(item)
         return true

@@ -371,20 +371,21 @@ local function Collect()
     return fields
 end
 
--- Create, for a new event: off, with why, while the game's calendar does not
--- take one (not ready, busy with the last one, or at its limit of events
--- created).
+-- Create or Save: off, with why, while the game's calendar would not take
+-- it: a new event while it is not ready, busy with the last one, or at its
+-- limit of events created; a change while its event is not open yet, or
+-- when the game does not let the player change it.
 local function UpdateSave()
     if not form then
         return
     end
     local reason
-    if not editing then
-        if ns.Calendar.Creating() or not ns.Rights.MayCreate() then
-            reason = L["Syncing the calendar..."]
-        elseif ns.Calendar.AtLimit() then
-            reason = ns.Calendar.LimitText()
-        end
+    if editing then
+        reason = ns.Calendar.EditBlocked(editing)
+    elseif ns.Calendar.Creating() or not ns.Rights.MayCreate() then
+        reason = L["Syncing the calendar..."]
+    elseif ns.Calendar.AtLimit() then
+        reason = ns.Calendar.LimitText()
     end
     form.Save:SetEnabled(reason == nil)
     form.Save.reason = reason
@@ -393,16 +394,17 @@ end
 local function Save()
     local fields, why = Collect()
     if not fields then
-        if not editing then
-            ns.Calendar.OnClick()
-        end
         form.Error:SetText(why)
         return
     end
     if editing then
-        -- The game's calendar first, inside the click, then our record.
-        if not ns.Calendar.UpdateFirst(editing, fields) then
-            ns.Calendar.OnClick()
+        -- The game's calendar first, inside the click: the change goes into
+        -- the addon only if the calendar takes it.
+        local sent, refused = ns.Calendar.UpdateFirst(editing, fields)
+        if not sent then
+            form.Error:SetText(refused or L["The game's calendar refused the change. Click again to retry."])
+            UpdateSave()
+            return
         end
         if not Events.Change(editing, fields) then
             form.Error:SetText(L["The event could not be changed."])
@@ -698,7 +700,7 @@ local function Create()
     form.Error:SetPoint("BOTTOMLEFT", 20, 44)
     form.Error:SetPoint("RIGHT", -20, 0)
     form.Error:SetJustifyH("LEFT")
-    form.Save = UI.Button(form, L["Save"], Save, true)
+    form.Save = UI.Button(form, L["Save"], Save)
     UI.SetTooltip(form.Save, function(self)
         return self:GetText()
     end, function(self)

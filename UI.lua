@@ -268,28 +268,15 @@ function UI.DateText(naive)
     return ("%s, %s"):format(UI.DayText(naive), UI.HourText(naive))
 end
 
--- Every click in the addon's window goes through this: the game's calendar
--- takes a change only first thing in a click of the player, so the click
--- first lets a change of the player's events reach it (Calendar.OnClick),
--- then runs handler. A handler that calls the calendar itself (restricted:
--- Create, Save, Cancel event, Restore event, Create in calendar) is not
--- wrapped: it calls the calendar first (the form's Save also calls
--- Calendar.OnClick when it sends nothing).
-function UI.Clicked(handler)
-    return function(...)
-        ns.Calendar.OnClick()
-        return handler(...)
-    end
-end
-
--- A button of the addon's window, its click through UI.Clicked unless
--- restricted.
-function UI.Button(parent, text, onClick, restricted)
+-- A button of the addon's window. Those that change the game's calendar
+-- (Create, Save, Cancel event, Restore event, Create in calendar) call it
+-- first thing in their click, the only time the game takes it.
+function UI.Button(parent, text, onClick)
     local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
     button:SetText(text)
     button:SetSize(math.max(button:GetTextWidth() + 28, 80), 22)
     button:SetMotionScriptsWhileDisabled(true)
-    button:SetScript("OnClick", restricted and onClick or UI.Clicked(onClick))
+    button:SetScript("OnClick", onClick)
     return button
 end
 

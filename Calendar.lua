@@ -7,11 +7,7 @@
 --   - creating and changing an event only inside a click of the player (a
 --     "hardware event"), with the call first in the click. The addon's
 --     buttons do it in their own click: Create, Save, Restore event, and
---     Create in calendar for next week's event of a weekly one. A new or
---     restored event comes into the addon once the calendar has it, and not
---     at all when the calendar refuses it (its limit of events created). A
---     change made with no click of the organizer's (an officer's) goes with
---     the organizer's next click anywhere in the addon;
+--     Create in calendar for next week's event of a weekly one;
 --   - deleting an event, opening one, signing up, signing up as tentative,
 --     taking a sign-up back, and giving a sign-up a status (confirmed,
 --     standby, out) at any time, with no click. Each client does these by
@@ -21,6 +17,11 @@
 -- that player's calendar for about an hour; the new answer goes in once it
 -- is back. Guild events take sign-ups, not invitations, so those made
 -- outside the game stay in the addon only.
+--
+-- The calendar first, always: a change made in the addon (a new event, a
+-- change, a cancelled or restored event) comes into the addon only once the
+-- game's calendar took it; when the game refuses it, nothing changes, and
+-- the window says why.
 --
 -- From the calendar to the addon: the organizer's client takes into the
 -- addon what was changed in the game's calendar window (title, time, type,
@@ -87,9 +88,10 @@ local function WindowSignature()
         "v" .. tostring(UnitLevel("player")),
     }
     for key, event in pairs(Events.All()) do
-        parts[#parts + 1] = ("k%s|%s|%s|%s|%s|%s"):format(key, tostring(Calendar.Unsent(event)),
+        parts[#parts + 1] = ("k%s|%s|%s|%s|%s|%s|%s"):format(key, tostring(Calendar.Unsent(event)),
             tostring(Calendar.HiddenFromMe(event)), tostring(Calendar.Restoring(key)),
-            tostring(Events.IsUpcoming(event, now)), tostring(event.tm + Events.KEEP > now))
+            tostring(Calendar.Cancelling(key)), tostring(Events.IsUpcoming(event, now)),
+            tostring(event.tm + Events.KEEP > now))
     end
     table.sort(parts)
     return table.concat(parts, ",")
@@ -146,15 +148,7 @@ function Calendar.Tick()
         Member.SendAnswer(answer)
         return
     end
-    -- A change that waits for the organizer's click keeps its event open,
-    -- so the next click sends it; meanwhile, the sign-ups of an event are
-    -- looked at only when their statuses changed in the addon (else, with
-    -- many events, those looks would never leave it open).
-    local waiting = Organizer.ToKeepOpen()
-    if Statuses.MirrorNext(now, waiting ~= nil) then
-        return
-    end
-    if waiting and Organizer.KeepOpenFor(waiting) then
+    if Statuses.MirrorNext(now) then
         return
     end
     Read.CloseKept()

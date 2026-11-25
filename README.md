@@ -59,7 +59,10 @@ linked to the game's calendar.
   event in the calendar, and the two stay in step wherever a change is
   made, also with the calendar's window open. **Create**, **Save**,
   **Cancel event** and **Restore event** change the calendar with the same
-  click. What you change in the calendar's window (title, time, type,
+  click, the calendar first: the addon takes the change only once the
+  calendar has taken it, and when the game refuses it, nothing changes and
+  the addon says why (**Save** stays off, saying why, while the game would
+  not take it). What you change in the calendar's window (title, time, type,
   description, whether it is locked, the statuses of the sign-ups) comes
   into the addon; an
   event deleted there is cancelled in the addon; a guild event you create
@@ -73,8 +76,7 @@ linked to the game's calendar.
   calendar** button, in its view and on its row (the game lets an addon
   create a calendar event only inside a click of the player); the button is
   off while the game takes no new event, as its own Create button, or after
-  it reported its limit, and an event it refuses stays, waiting. So does an officer's change the game
-  does not let the officer make in the calendar.
+  it reported its limit, and an event it refuses stays, waiting.
 - **Reminders**: before the events you signed up to (or are tentative for),
   a raid warning on the screen, a line in the chat and a sound. Choose 5,
   15, 30 or 60 minutes before, or none, in Options > AddOns > Guild Raids &

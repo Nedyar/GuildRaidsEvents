@@ -91,16 +91,6 @@ local function PrintStatus()
         ns.Print(L["guild %s: %d upcoming |4event:events;, %d |4member:members; in the roster."], guildKey, upcoming,
             ns.Roster.total)
     end
-    -- What any click sends (an event to create waits for its own button).
-    local pending = 0
-    for _, item in ipairs(ns.Calendar.Pending()) do
-        if item.kind ~= "create" then
-            pending = pending + 1
-        end
-    end
-    if pending > 0 then
-        ns.Print(L["%d |4change waits:changes wait; for your click to reach the game's calendar."], pending)
-    end
     -- The calendar's own state, as the author reads it (not translated).
     local last = ns.Calendar.lastSent
     ns.Print("calendar: data read %s; last change: %s", ns.Calendar.Scanned() and YES or NO,

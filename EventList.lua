@@ -81,18 +81,18 @@ local function CreateRow(row)
         return event and event.owner == ns.playerGUID and L["Deletes this cancelled event, for everyone."]
             or L["Takes this cancelled event out of your list, only for you."]
     end)
-    row.Clear:SetScript("OnClick", UI.Clicked(function()
+    row.Clear:SetScript("OnClick", function()
         if row.event then
             UI.Clear({ row.event })
             ns.GuildTab.Refresh()
         end
-    end))
+    end)
     -- Next week's event of a weekly one, not in the calendar yet: its button.
     row.Send = UI.Button(row, L["Create in calendar"], function()
         if row.event then
             ns.Calendar.SendNow(row.event.key)
         end
-    end, true)
+    end)
     row.Send:SetHeight(20)
     row.Send:SetFrameLevel(row:GetFrameLevel() + 2)
     row.Send:SetPoint("BOTTOMRIGHT", -6, 4)
@@ -106,12 +106,9 @@ local function CreateRow(row)
     highlight:SetAllPoints()
     highlight:SetBlendMode("ADD")
     row:EnableMouse(true)
-    local open = UI.Clicked(function(self)
-        ns.EventView.Open(self.event.key)
-    end)
     row:SetScript("OnMouseUp", function(self, button)
         if button == "LeftButton" and self.event then
-            open(self)
+            ns.EventView.Open(self.event.key)
         end
     end)
 end
