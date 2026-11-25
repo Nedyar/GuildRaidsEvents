@@ -43,13 +43,13 @@ Pack.LIMITS = {
 --       d = damage }, or nil for no limit, ml = minimum level (0: none),
 --       ii = where: the Group Finder activity of its raid, dungeon or
 --       battleground (UI.PlacesFor), UI.WORLD_PVP for world PvP, 0 for none,
---       wk = repeats weekly (nx = its next week's was made), ac = confirms by itself (the first to sign up
---       in each role, the rest on standby), lk = locked (members cannot
---       answer it, as the game's calendar has it), x = deleted, ci = its event
+--       wk = repeats weekly (nx = its next week's was made), lk = locked
+--       (members cannot answer it, as the game's calendar has it), x =
+--       deleted, ci = its event
 --       ID in the game's calendar, 0 until it is there, at = time of its
 --       last change },
 --   pe = the guild's events a moderator changed, the event's whole fields as
---       they left it (x: they deleted it): { [key] = { at, ty, ti, tm, de, sl, ml, ii, wk, nx, ac, lk, x } },
+--       they left it (x: they deleted it): { [key] = { at, ty, ti, tm, de, sl, ml, ii, wk, nx, lk, x } },
 --   su = its sign-ups: { [key] = { st = 1 signed up, 2 tentative, 3 not
 --       coming, ro = role (1 tank, 2 healer, 3 damage), no = note, at =
 --       time of the answer } },
@@ -75,8 +75,10 @@ Pack.LIMITS = {
 -- skipped by older readers.
 local LIMITS = Pack.LIMITS
 local ABSENT, PRESENT = 0, 1
--- An event's flags, added up.
-local WEEKLY, AUTO, DELETED, SLOTS, LOCKED, NEXT = 1, 2, 4, 8, 16, 32
+-- An event's flags, added up. (2 stood for confirming by itself, which
+-- went: the game's calendar has no such thing. It is not read, nor
+-- written again.)
+local WEEKLY, DELETED, SLOTS, LOCKED, NEXT = 1, 4, 8, 16, 32
 
 local function Has(flags, flag)
     return math.floor(flags / flag) % 2 == 1
@@ -88,7 +90,7 @@ local function WriteFields(writer, event)
     writer:Str(event.ti)
     writer:UInt(event.tm)
     writer:Str(event.de or "")
-    local flags = (event.wk and WEEKLY or 0) + (event.ac and AUTO or 0) + (event.x and DELETED or 0)
+    local flags = (event.wk and WEEKLY or 0) + (event.x and DELETED or 0)
         + (event.sl and SLOTS or 0) + (event.lk and LOCKED or 0) + (event.nx and NEXT or 0)
     writer:Byte(flags)
     if event.sl then
@@ -111,7 +113,6 @@ local function ReadFields(reader, event)
     end
     local flags = reader:Byte()
     event.wk = Has(flags, WEEKLY) or nil
-    event.ac = Has(flags, AUTO) or nil
     event.x = Has(flags, DELETED) or nil
     event.lk = Has(flags, LOCKED) or nil
     event.nx = Has(flags, NEXT) or nil

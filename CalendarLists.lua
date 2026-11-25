@@ -11,9 +11,9 @@
 -- (Lists.Elected); the others read it every quarter of an hour, in case
 -- the one whose turn it is does not. A list is shared only when it changed
 -- since anyone shared it: by any other client, only if nobody shared it
--- a moment later. Lists are also read whenever an event is open for
--- another reason: its statuses looked at, or the player viewing it in the
--- game's window.
+-- within a turn after (the one whose turn it is shares it at once). Lists
+-- are also read whenever an event is open for another reason: its
+-- statuses looked at, or the player viewing it in the game's window.
 --
 -- What a list keeps: the lines of those signed up in some way (or
 -- tentative), with their status, whether they moderate, and when they
@@ -32,8 +32,8 @@ local Plain = Read.Plain
 
 local READ_EVERY = 120       -- seconds of each turn to read an event, and between two reads by whose turn it is
 local OTHERS_EVERY = 900     -- seconds between two reads by any other
-local SHARE_WAIT = 10        -- seconds any other waits before it shares a list that changed (a list
-                             -- shared goes out within seconds: LibGuildSync's quick changes)
+local SHARE_WAIT = READ_EVERY + 30  -- seconds any other waits before it shares a list that changed: the
+                                    -- one whose turn it is (or the next) reads and shares it meanwhile
 
 local lastRead = {}          -- [event ID] = server time this client last read it
 local soon = {}              -- [event ID] = true: read it next, and share it at once (Lists.ReadSoon)
@@ -175,8 +175,8 @@ function Lists.Take(event, urgent)
     elseif urgent or Lists.Elected(event.ci) then
         return Share()
     end
-    -- Any other client waits a moment: the one whose turn it is may have
-    -- read it too, and its list be on its way.
+    -- Any other client waits a turn: the one whose turn it is (or the
+    -- next) reads it too, and shares it if it changed.
     C_Timer.After(SHARE_WAIT, Share)
     return false
 end

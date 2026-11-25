@@ -82,9 +82,6 @@ local function ShowTooltip(owner, signUp, draggable)
     GameTooltip:SetOwner(owner, "ANCHOR_CURSOR_RIGHT")
     GameTooltip:SetText(UI.ClassColored(signUp.name or "?", signUp.class), 1, 1, 1)
     local status = UI.StateName(States.Of(signUp))
-    if signUp.auto then
-        status = ("%s (%s)"):format(status, L["automatically"])
-    end
     GameTooltip:AddLine(("%s · %s"):format(UI.RoleName(signUp.ro), status), 1, 0.82, 0, true)
     if signUp.level then
         GameTooltip:AddLine(L["Level %d"]:format(signUp.level), 0.8, 0.8, 0.8)
@@ -141,7 +138,7 @@ local function NameMenu(owner, signUp)
         if manager then
             for _, status in ipairs({ Events.CONFIRMED, Events.STANDBY, Events.OUT, Events.PROVISIONAL }) do
                 root:CreateRadio(UI.StatusName(status), function()
-                    return signUp.status == status and not (signUp.auto and status ~= Events.NONE)
+                    return signUp.status == status
                 end, function()
                     if event.cal then
                         -- Made in the game's calendar: given there.
@@ -579,8 +576,8 @@ function EventView.Create(parent)
     return view
 end
 
--- The details line: places, minimum level, weekly, confirms by itself; or
--- that it was made in the game's calendar (it has none of those).
+-- The details line: minimum level, weekly; or that it was made in the
+-- game's calendar (it has neither).
 local function DetailsText(event)
     if event.cal then
         return L["Made in the game's calendar, without the addon."]
@@ -592,7 +589,6 @@ local function DetailsText(event)
     if event.wk then
         parts[#parts + 1] = L["Every week"]
     end
-    parts[#parts + 1] = event.ac and L["Confirms sign-ups automatically"] or L["The organizer confirms"]
     return table.concat(parts, "  ·  ")
 end
 

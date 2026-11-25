@@ -29,14 +29,14 @@ H.section("Sync: an event reaches everyone")
 local Events = organizer.ns.Events
 local start = Events.Now() + 2 * 86400 + 25
 local key = Events.Create({ ty = 0, ti = "Molten Core", tm = start, de = "Fire resistance.", ml = 55,
-    sl = { t = 1, h = 1, d = 2 }, ac = true })
+    sl = { t = 1, h = 1, d = 2 } })
 H.check(key ~= nil, "the organizer creates an event")
 start = start - start % 60
 H.eq(Events.Get(key).tm, start, "starting on a whole minute, as the calendar keeps it")
 world:RunFor(30)
 for _, client in ipairs({ master, member, bridge, officer }) do
     local event = client.ns.Events.Get(key)
-    H.check(event ~= nil and event.ti == "Molten Core" and event.ml == 55 and event.ac, client.name .. " has it")
+    H.check(event ~= nil and event.ti == "Molten Core" and event.ml == 55, client.name .. " has it")
 end
 
 H.section("Sync: answers and statuses")
@@ -52,26 +52,26 @@ local function SignUpOf(client, guid)
 end
 local seen = SignUpOf(organizer, member.guid)
 H.check(seen ~= nil and seen.ro == 1 and seen.no == "first time here", "the organizer sees the sign-up, its role and note")
-H.eq(seen.status, 1, "first tank in an event that confirms by itself: confirmed")
+H.eq(seen.status, 0, "signed up, with no status until one is given: nothing confirms by itself")
 local own = SignUpOf(member, organizer.guid)
-H.check(own and own.st == 1 and own.status == 1 and not own.auto, "the organizer is signed up and confirmed, as the calendar does")
-H.eq(SignUpOf(master, officer.guid).status, 2, "the second, past the one place, on standby, for everyone")
+H.check(own and own.st == 1 and own.status == 1, "the organizer is signed up and confirmed, as the calendar does")
+H.eq(SignUpOf(master, officer.guid).status, 0, "the second the same, for everyone")
 H.check(organizer.ns.Events.SetStatus(key, officer.guid, 1), "the organizer confirms the officer")
 world:RunFor(30)
 H.eq(SignUpOf(member, officer.guid).status, 1, "the member sees the officer confirmed")
-H.eq(SignUpOf(member, member.guid).status, 2, "and themselves on standby now")
+H.eq(SignUpOf(member, member.guid).status, 0, "and themselves as they were: nothing moves by itself")
 H.check(not member.ns.Events.SetStatus(key, member.guid, 1), "a member may not give statuses")
 
 H.section("Sync: a moderator changes the event")
 local event = officer.ns.Events.Get(key)
 H.check(not officer.ns.Events.Change(key, { ty = 0, ti = "Molten Core (moved)", tm = event.tm + 3600, de = event.de, ml = 55,
-    sl = event.sl, ac = true }), "an officer may not change it by rank alone")
+    sl = event.sl }), "an officer may not change it by rank alone")
 H.check(organizer.ns.Events.SetModerator(key, officer.guid, true), "the organizer names them a moderator (they are in its list)")
 world:RunFor(30)
 H.check(officer.ns.Events.IsModerator(officer.ns.Events.Get(key), officer.guid), "everyone knows")
 event = officer.ns.Events.Get(key)
 H.check(officer.ns.Events.Change(key, { ty = 0, ti = "Molten Core (moved)", tm = event.tm + 3600, de = event.de, ml = 55,
-    sl = event.sl, ac = true }), "the moderator changes it")
+    sl = event.sl }), "the moderator changes it")
 H.check(not officer.ns.Events.SetModerator(key, organizer.guid, false), "but cannot take the organizer back")
 world:RunFor(30)
 H.eq(organizer.ns.Events.Get(key).ti, "Molten Core (moved)", "the organizer sees the change")
@@ -99,7 +99,7 @@ H.check(not ok and why == "noEvent", "not to an unknown event")
 local function Lock(locked)
     local e = organizer.ns.Events.Get(key)
     return organizer.ns.Events.Change(key, { ty = e.ty, ti = e.ti, tm = e.tm, de = e.de, sl = e.sl, ml = e.ml, ii = e.ii,
-        wk = e.wk, ac = e.ac, lk = locked or nil })
+        wk = e.wk, lk = locked or nil })
 end
 H.check(Lock(true), "the organizer locks the event")
 world:RunFor(30)
@@ -115,7 +115,7 @@ local events = master.env.GuildRaidsEvents.GetEvents()
 H.eq(#events, 1, "the API lists the upcoming event")
 local listed = events[1]
 H.check(listed.key == key and listed.title == "Molten Core (moved)" and listed.type == "raid" and listed.organizer == "Organizer Name"
-    and listed.slots.tank == 1 and listed.minLevel == 55 and listed.autoConfirm and listed.locked == false and listed.startUnix == listed.start,
+    and listed.slots.tank == 1 and listed.minLevel == 55 and listed.autoConfirm == nil and listed.locked == false and listed.startUnix == listed.start,
     "with its fields as the API describes them")
 local healer
 for _, signUp in ipairs(listed.signUps) do
@@ -123,8 +123,8 @@ for _, signUp in ipairs(listed.signUps) do
         healer = signUp
     end
 end
-H.check(healer and healer.status == "signedUp" and healer.role == "healer" and healer.external and healer.manage == "confirmed"
-    and healer.auto, "and its sign-ups, the brought-in one confirmed by itself")
+H.check(healer and healer.status == "signedUp" and healer.role == "healer" and healer.external and healer.manage == nil
+    and healer.auto == nil, "and its sign-ups, the brought-in one with no status given")
 H.check(api.SetExternalSignUp(key, "Master Name", nil), "taking it back")
 world:RunFor(30)
 H.eq(SignUpOf(organizer, master.guid), nil, "it is gone for everyone")

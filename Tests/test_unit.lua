@@ -42,7 +42,7 @@ local record = {
     n = "Solo Name", rl = "TestRealm", t = now, av = 100,
     ev = {
         { id = "t2abc", ty = 0, ti = "Molten Core", tm = start, de = "Bring fire resistance.\nBe on time.",
-          sl = { t = 2, h = 4, d = 14 }, ml = 60, ii = 839, wk = true, ac = true, lk = true, ci = 2773004, at = now },
+          sl = { t = 2, h = 4, d = 14 }, ml = 60, ii = 839, wk = true, lk = true, ci = 2773004, at = now },
         { id = "t2abd", ty = 4, ti = "Fishing contest", tm = start + 86400, ml = 0, ci = 0, at = now - 10, x = true },
     },
     pe = { ["Player-1-0000000B/zz"] = { ty = 1, ti = "Scholomance", tm = start, ml = 0, at = now } },
@@ -234,7 +234,7 @@ H.check(Events.Get(eventKey) == nil and Events.Deleted()[eventKey] ~= nil, "an e
 base.x = nil
 Events.Invalidate()
 
-H.section("Events: sign-ups, statuses and confirming by itself")
+H.section("Events: sign-ups and statuses")
 local event
 local function Refresh()
     Events.Invalidate()
@@ -252,22 +252,16 @@ H.eq(signUps[1].guid, solo.guid, "in the order they came")
 H.check(signUps[2].no == "can heal too" and signUps[2].name == "Officer Name", "with their note and name")
 local counts = Events.Counts(signUps)
 H.check(counts[1] == 2 and counts[2] == 0 and counts[3] == 1, "counted by role: those signed up or confirmed, not the tentative")
-H.eq(signUps[1].status, Events.NONE, "no status while the event does not confirm by itself")
-base.ac = true
-Refresh()
-signUps = Events.SignUps(event)
-H.check(signUps[1].status == Events.CONFIRMED and signUps[1].auto, "confirming by itself: the first tank is confirmed")
-H.eq(signUps[2].status, Events.STANDBY, "the second tank, past the one place, on standby")
-H.eq(signUps[3].status, Events.NONE, "the tentative one gets no status")
-H.eq(signUps[4].status, Events.CONFIRMED, "the damage dealer has a place")
+H.check(signUps[1].status == Events.NONE and signUps[2].status == Events.NONE and signUps[4].status == Events.NONE,
+    "no status until one is given, places or not: nothing confirms by itself, as in the game's calendar")
 guild.members[member].ms = { [eventKey] = { [officer] = { st = 1, at = now } } }
 Refresh()
 signUps = Events.SignUps(event)
-H.check(signUps[2].status == Events.CONFIRMED and not signUps[2].auto, "the organizer confirms the second tank")
-H.eq(signUps[1].status, Events.STANDBY, "who then takes the place first: the other goes on standby")
+H.eq(signUps[2].status, Events.CONFIRMED, "the organizer confirms the second tank")
+H.eq(signUps[1].status, Events.NONE, "the first stays as they were")
 guild.members[other].ms = { [eventKey] = { [solo.guid] = { st = 1, at = now + 1 } } }
 Refresh()
-H.eq(Events.SignUps(event)[1].status, Events.STANDBY, "a member who may not manage it gives no status")
+H.eq(Events.SignUps(event)[1].status, Events.NONE, "a member who may not manage it gives no status")
 guild.members[solo.guid].ms = { [eventKey] = { [officer] = { st = 3, at = now + 2 } } }
 Refresh()
 H.eq(Events.SignUps(event)[2].status, Events.CONFIRMED, "the guild master gives none either, by rank alone")
@@ -275,7 +269,6 @@ guild.members[member].mo = { [eventKey] = { [solo.guid] = { on = true, at = now 
 Refresh()
 signUps = Events.SignUps(event)
 H.eq(signUps[2].status, Events.OUT, "named a moderator, their newer status wins")
-H.eq(signUps[1].status, Events.CONFIRMED, "and the place goes back to the first tank")
 H.eq(Events.Counts(signUps)[1], 1, "those out are not counted")
 
 H.section("Events: sign-ups from outside the game")
@@ -310,8 +303,8 @@ local _, noAddon = world:AddMember("Calendar Name", nil, { rank = "Member", rank
 local _, lateMember = world:AddMember("Late Name", nil, { rank = "Member", rankIndex = 3 })
 world:RosterChanged()
 world:RunFor(5)
-local wasAuto, wasCI, wasStatuses, wasNamings = base.ac, base.ci, guild.members[member].ms, guild.members[member].mo
-base.ac, base.ci = nil, 2773100
+local wasCI, wasStatuses, wasNamings = base.ci, guild.members[member].ms, guild.members[member].mo
+base.ci = 2773100
 local CI = base.ci
 local S = { Signedup = 6, Tentative = 8, NotSignedup = 7, Confirmed = 3 }
 guild.members[bridge].cs = { [CI] = { at = now + 20, cr = member, l = {
@@ -370,7 +363,7 @@ H.check(guild.members[solo.guid].cs[CI] ~= nil and guild.members[solo.guid].cs[9
     "the newest is kept; one of no event known for a day is dropped")
 guild.members[solo.guid].cs, guild.members[officer].cs, guild.members[lateMember] = nil, nil, nil
 guild.members[member].ms, guild.members[member].mo = wasStatuses, wasNamings
-base.ac, base.ci = wasAuto, wasCI
+base.ci = wasCI
 Refresh()
 
 H.section("Events: the player's own changes")

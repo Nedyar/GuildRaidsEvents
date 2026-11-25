@@ -44,8 +44,7 @@ linked to the game's calendar.
   game's Group Finder list, or picked from it); a day, picked in a
   month's calendar up to the last day the game's calendar takes, and a
   time; a description, places per role (or no limit), a minimum level,
-  whether it repeats every week, whether it confirms sign-ups automatically,
-  and whether it is locked. **Create** puts it in the game's calendar first,
+  whether it repeats every week and whether it is locked. **Create** puts it in the game's calendar first,
   and the event comes into the addon once the calendar has it. The calendar
   has its own limit of events created; the addon has none: if the calendar
   refuses one, nothing comes into the addon, and Create and New event stay
@@ -57,9 +56,8 @@ linked to the game's calendar.
   or they drag the name to another column to change its role. Other members
   cannot change their own status, as in the game. They also change the
   event (**Edit**) or delete it (**Delete event**), as far as the game's
-  calendar lets them. An event that confirms sign-ups
-  automatically confirms those who sign up in each role while it has
-  places, in the order they signed up, and leaves the rest on standby.
+  calendar lets them. Nothing confirms by itself: the game's calendar has
+  no such thing, so the addon would not agree with it.
 - **Deleting an event**, as in the game's calendar: **Delete event**, once
   you confirm it, deletes it from the calendar first, then from the addon,
   for everyone. Its organizer and its moderators may, and so may the guild
@@ -107,8 +105,8 @@ linked to the game's calendar.
   not), and a list goes to the guild only when it changed.
 - **Events made without the addon**: a guild event someone creates in the
   game's calendar without the addon shows in everyone's list, as its
-  creator's, with only what the calendar keeps (no places, level, place,
-  weekly or confirming by itself; its view says where it was made). Every
+  creator's, with only what the calendar keeps (no places, level, place
+  or weekly; its view says where it was made). Every
   addon knows it by its creator and its calendar event, so it never shows
   twice; if its creator starts using the addon, theirs takes it in as it
   is, with the sign-ups made meanwhile. Members sign up to it from the
@@ -179,15 +177,16 @@ characters' clients add them by the name of the guild member who signed up.
 | `GuildRaidsEvents.OnChange(callback)` | Calls `callback()` whenever the events change |
 
 An event is `{ key, title, type, start, startUnix, description, organizer,
-organizerGUID, slots, minLevel, weekly, autoConfirm, locked, calendarID,
-changed, signUps }`: `type` is `"raid"`, `"dungeon"`, `"pvp"`, `"meeting"`
+organizerGUID, slots, minLevel, weekly, locked, calendarID,
+changed, signUps, madeInCalendar }`: `type` is `"raid"`, `"dungeon"`, `"pvp"`, `"meeting"`
 or `"other"`; `start` is the game's calendar time (the server's) as seconds
 as if it were UTC, and `startUnix` the same moment as a Unix time; `slots`
 is `{ tank, healer, damage }`, or nil for no limit. A sign-up is `{ name,
-guid, class, level, status, role, note, time, manage, auto, external }`:
-`manage` is `"confirmed"`, `"standby"`, `"out"` or nil, `auto` says the
-event set it automatically, and `external` that it was brought in from outside
-the game. The newest answer of a member counts, whether made in the game or
+guid, class, level, status, role, note, time, manage, external,
+calendar }`: `manage` is `"confirmed"`, `"standby"`, `"out"`, `"tentative"`
+or nil, `external` says it was brought in from outside the game, and
+`calendar` that it was made in the game's calendar by a member without the
+addon. The newest answer of a member counts, whether made in the game or
 brought in.
 
 ## Tests

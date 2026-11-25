@@ -358,7 +358,6 @@ local function Collect()
         ty = chosen.ty, ti = title, tm = start, de = strtrim(form.Description.EditBox:GetText() or ""),
         ml = Number(form.MinLevel, ns.Pack.LIMITS.level), wk = form.Weekly:GetChecked() == true or nil,
         ii = #UI.PlacesFor(chosen.ty) > 0 and chosen.ii or nil,
-        ac = form.Auto:GetChecked() == true or nil,
         lk = form.Lock:GetChecked() == true or nil,
     }
     if form.Limit:GetChecked() then
@@ -629,7 +628,7 @@ local function UpdateLimit()
         box:SetAlpha(on and 1 or 0.5)
     end
     -- What the game's calendar does not keep, off for an event made there.
-    for _, widget in ipairs({ form.Limit, form.MinLevel, form.Weekly, form.Auto }) do
+    for _, widget in ipairs({ form.Limit, form.MinLevel, form.Weekly }) do
         widget:SetEnabled(not madeThere)
         widget:SetAlpha(madeThere and 0.5 or 1)
     end
@@ -637,7 +636,7 @@ end
 
 local function Create()
     form = CreateFrame("Frame", "GuildRaidsEventsForm", UIParent, "PortraitFrameTemplate")
-    form:SetSize(440, 520)
+    form:SetSize(440, 494)
     form:SetPoint("CENTER")
     form:SetFrameStrata("DIALOG")
     form:SetMovable(true)
@@ -712,9 +711,6 @@ local function Create()
     local lockText = CALENDAR_LOCK_EVENT or L["Lock event"]
     form.Lock = Check(lockText, -404, LEFT + 200)
     UI.SetTooltip(form.Lock, lockText, CALENDAR_TOOLTIP_LOCKEVENT or L["If checked, members cannot answer this event."])
-    form.Auto = Check(L["Confirm sign-ups automatically: the first in each role, the rest on standby"], -430)
-    form.Auto.Label:SetWidth(360)
-    form.Auto.Label:SetJustifyH("LEFT")
 
     form.Error = form:CreateFontString(nil, "ARTWORK", "GameFontRedSmall")
     form.Error:SetPoint("BOTTOMLEFT", 20, 44)
@@ -769,7 +765,6 @@ function EventForm.Open(key)
         form.Damage:SetText(tostring(event.sl and event.sl.d or 5))
         form.MinLevel:SetText(tostring(event.ml or 0))
         form.Weekly:SetChecked(event.wk == true)
-        form.Auto:SetChecked(event.ac == true)
         form.Lock:SetChecked(event.lk == true)
         form.Save:SetText(L["Save"])
         form.Hint:SetText(madeThere and L["Made in the game's calendar: only what the calendar keeps changes."]
@@ -789,7 +784,6 @@ function EventForm.Open(key)
         form.Damage:SetText("5")
         form.MinLevel:SetText("0")
         form.Weekly:SetChecked(false)
-        form.Auto:SetChecked(false)
         form.Lock:SetChecked(false)
         form.Save:SetText(L["Create"])
         form.Hint:SetText(L["It goes to the game's calendar when you create it."])

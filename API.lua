@@ -23,13 +23,13 @@
 -- calendar time, as seconds as if it were UTC),
 -- startUnix (the same moment as a Unix time), description, organizer (a
 -- name), organizerGUID, slots ({ tank, healer, damage } or nil: no limit),
--- minLevel, weekly, autoConfirm, locked (members cannot answer it),
+-- minLevel, weekly, locked (members cannot answer it),
 -- calendarID (or nil), changed
 -- (Unix time), signUps, madeInCalendar (made in the game's calendar by a
 -- member without the addon: it has only what the calendar keeps, and
 -- changed 0) }. A sign-up: { name, guid, class, level, status,
 -- role, note, time (Unix time of the answer), manage ("confirmed",
--- "standby", "out", "tentative" or nil), auto (the event set manage by itself),
+-- "standby", "out", "tentative" or nil),
 -- external (brought in from outside the game), calendar (made in the
 -- game's calendar by a member whose answer is not the addon's) }. A status
 -- "declined" also stands for a sign-up taken back.
@@ -54,7 +54,7 @@ local function Copy(event, offset)
         signUps[#signUps + 1] = {
             name = signUp.name, guid = signUp.guid, class = signUp.class, level = signUp.level,
             status = STATUS_NAMES[signUp.st], role = signUp.ro and ROLE_NAMES[signUp.ro] or nil, note = signUp.no,
-            time = signUp.at, manage = MANAGE_NAMES[signUp.status], auto = signUp.auto == true,
+            time = signUp.at, manage = MANAGE_NAMES[signUp.status],
             external = signUp.external == true, calendar = signUp.calendar == true,
         }
     end
@@ -63,7 +63,7 @@ local function Copy(event, offset)
         placeID = event.ii, start = event.tm, startUnix = event.tm - offset,
         description = event.de, organizer = Events.MemberName(event.owner), organizerGUID = event.owner,
         slots = event.sl and { tank = event.sl.t, healer = event.sl.h, damage = event.sl.d } or nil,
-        minLevel = event.ml or 0, weekly = event.wk == true, autoConfirm = event.ac == true, locked = event.lk == true,
+        minLevel = event.ml or 0, weekly = event.wk == true, locked = event.lk == true,
         calendarID = event.ci ~= 0 and event.ci or nil, changed = event.at, signUps = signUps,
         madeInCalendar = event.cal == true,
     }

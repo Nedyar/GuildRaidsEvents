@@ -117,7 +117,6 @@ local function CleanFields(event, now)
     end
     clean.wk = event.wk == true or nil
     clean.nx = event.nx == true or nil
-    clean.ac = event.ac == true or nil
     clean.lk = event.lk == true or nil
     clean.x = event.x == true or nil
     return clean

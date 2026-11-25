@@ -305,7 +305,7 @@ world:RunFor(15)
 H.check(view.SignUp:IsEnabled() and view.Tentative:IsEnabled(), "back in their calendar: they answer again")
 H.Click(view.SignUp)
 world:RunFor(30)
-H.check(MineOf(member).st == 1 and ns.States.Goes(MineOf(member)) and (MineOf(member).status == 0 or MineOf(member).auto),
+H.check(MineOf(member).st == 1 and ns.States.Goes(MineOf(member)) and MineOf(member).status == 0,
     "signing up again after it: signed up, with no status of the organizer's, as in the game")
 OwnStatus("Out")
 H.check(MineOf(organizer).status == 3 and orgView.Others:GetText():find("|Hgre:" .. organizer.guid, 1, true),

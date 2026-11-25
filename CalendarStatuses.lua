@@ -154,8 +154,11 @@ local function StatusChanges(key, event)
                 local given = States.StatusOf(States.FromCalendar(status))
                 if status == target then
                     agreedOf[guid] = status
-                elseif target == agreed and given then
-                    -- Given in the calendar since: the addon takes it.
+                elseif given and (target == agreed or status ~= agreed) then
+                    -- Given in the calendar since (and changed in the addon
+                    -- too, as when a member's client takes in the answer
+                    -- that status stands for: the calendar's wins): the
+                    -- addon takes it.
                     agreedOf[guid] = status
                     Events.SetStatus(key, guid, given)
                     Note("from the calendar", "took a status given there: " .. event.ti)

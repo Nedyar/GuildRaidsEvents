@@ -31,10 +31,8 @@
 --     what the addon adds to it (answers, roles, a deletion) travels in
 --     the records as for any other.
 --   - A sign-up's status (confirmed, standby, out) is the newest any of
---     those who may manage the event gave. In an event that confirms by
---     itself, those who signed up without a status are confirmed while
---     their role has places, in the order they signed up, and the rest are
---     on standby: every client works it out the same way.
+--     those who may manage the event gave. Nothing confirms by itself: the
+--     game's calendar has no such thing, so the two could not agree.
 --
 -- Times: an event starts at a time of the game's calendar, which is the
 -- server's. It is kept as seconds as if that time were UTC (Events.Naive),
@@ -204,7 +202,7 @@ function Events.CalendarList(calendarID)
 end
 
 -- An event's fields (Pack.lua says what each is).
-local FIELDS = { "ty", "ti", "tm", "de", "sl", "ml", "ii", "wk", "nx", "ac", "lk", "x", "at" }
+local FIELDS = { "ty", "ti", "tm", "de", "sl", "ml", "ii", "wk", "nx", "lk", "x", "at" }
 Events.FIELDS = FIELDS
 
 -- An event's moderators, { [GUID] = true }: every record's namings of it
@@ -262,8 +260,7 @@ end
 -- (CalendarOrganizer.lua's Adopt). Not those the player created (their
 -- own client takes them in), nor, a moment after it shows, one whose
 -- creator is online and runs the addon (their client is likely taking it
--- in). Only what the calendar keeps: no places, level, place, weekly or
--- confirming by itself.
+-- in). Only what the calendar keeps: no places, level, place or weekly.
 local function MadeInCalendar(events, guild)
     local used = {}
     for _, event in pairs(events) do
@@ -514,10 +511,10 @@ function Events.GivenRoles(event)
 end
 
 -- An event's sign-ups as shown, in the order they were made: { guid,
--- name, class, level, st, ro, no, at, external, status, auto } (status:
--- Events.NONE... PROVISIONAL; auto: the event set it by itself). The answer
--- and the status are made one as the game's calendar has it (States.Merge);
--- the role is the answer's, or one given since.
+-- name, class, level, st, ro, no, at, external, calendar, status } (status:
+-- Events.NONE... PROVISIONAL). The answer and the status are made one as
+-- the game's calendar has it (States.Merge); the role is the answer's, or
+-- one given since.
 function Events.SignUps(event)
     local statuses, roles = Events.Statuses(event), Events.GivenRoles(event)
     local list = {}
@@ -539,28 +536,6 @@ function Events.SignUps(event)
         end
         return a.guid < b.guid
     end)
-    if event.ac then
-        local used = { 0, 0, 0 }
-        for _, signUp in ipairs(list) do
-            if signUp.st == Events.SIGNED and signUp.status == Events.CONFIRMED then
-                local role = signUp.ro or Events.DAMAGE
-                used[role] = used[role] + 1
-            end
-        end
-        for _, signUp in ipairs(list) do
-            if signUp.st == Events.SIGNED and signUp.status == Events.NONE then
-                local role = signUp.ro or Events.DAMAGE
-                local places = event.sl and event.sl[Events.ROLE_FIELD[role]]
-                if not places or used[role] < places then
-                    signUp.status = Events.CONFIRMED
-                    used[role] = used[role] + 1
-                else
-                    signUp.status = Events.STANDBY
-                end
-                signUp.auto = true
-            end
-        end
-    end
     return list
 end
 
@@ -647,7 +622,7 @@ local function NextChange(at)
 end
 
 -- The fields an event is made of, from the form: { ty, ti, tm, de, sl, ml,
--- ii, wk, ac, lk }, checked (x: a moderator's deletion). nil when they do
+-- ii, wk, lk }, checked (x: a moderator's deletion). nil when they do
 -- not pass.
 local function Fields(fields, at, deleting)
     local copy = {}
