@@ -380,7 +380,14 @@ local function UpdateSave()
         return
     end
     local reason
-    if editing then
+    if editing and not Events.Get(editing) then
+        -- Deleted meanwhile (by a moderator, or in the game's calendar
+        -- window): nothing left to change.
+        if form:IsShown() then
+            form:Hide()
+        end
+        return
+    elseif editing then
         reason = ns.Calendar.EditBlocked(editing)
     elseif ns.Calendar.Creating() or not ns.Rights.MayCreate() then
         reason = L["Syncing the calendar..."]

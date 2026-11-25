@@ -1,11 +1,10 @@
 -- EventList.lua: the list of the guild's events in the Raids & Events tab
--- (GuildTab.lua): upcoming ones, the soonest first, those of the last
--- week, the latest first, or the cancelled ones, the soonest first. Each row: the event type's icon, the title, when
+-- (GuildTab.lua): upcoming ones, the soonest first, or those of the last
+-- week, the latest first. Each row: the event type's icon, the title, when
 -- it is, its type and organizer, how many signed up in each role, and the
--- player's answer. A cancelled event's row is red. The notification mark
--- shows on the rows of upcoming events the player has not seen nor
--- answered; showing a row sees it. A click on a row opens the event
--- (EventView.lua).
+-- player's answer. The notification mark shows on the rows of upcoming
+-- events the player has not seen nor answered; showing a row sees it. A
+-- click on a row opens the event (EventView.lua).
 local _, ns = ...
 local L = ns.L
 
@@ -41,9 +40,6 @@ function EventList.MineText(mine)
 end
 
 local function CreateRow(row)
-    row.Cancelled = row:CreateTexture(nil, "BACKGROUND")
-    row.Cancelled:SetAllPoints()
-    row.Cancelled:SetColorTexture(0.85, 0.1, 0.1, 0.22)
     row.Icon = row:CreateTexture(nil, "ARTWORK")
     row.Icon:SetSize(38, 38)
     row.Icon:SetPoint("LEFT", 6, 0)
@@ -70,23 +66,6 @@ local function CreateRow(row)
     row.Mine:SetWidth(160)
     row.Mine:SetJustifyH("RIGHT")
     row.Mine:SetWordWrap(false)
-    -- A cancelled event's button to clear it from the list.
-    row.Clear = CreateFrame("Button", nil, row, "UIPanelCloseButtonNoScripts")
-    row.Clear:SetSize(22, 22)
-    -- The template puts it over everything (frame level 510): back on its row.
-    row.Clear:SetFrameLevel(row:GetFrameLevel() + 2)
-    row.Clear:SetPoint("BOTTOMRIGHT", -4, 2)
-    UI.SetTooltip(row.Clear, L["Clear"], function()
-        local event = row.event
-        return event and event.owner == ns.playerGUID and L["Deletes this cancelled event, for everyone."]
-            or L["Takes this cancelled event out of your list, only for you."]
-    end)
-    row.Clear:SetScript("OnClick", function()
-        if row.event then
-            UI.Clear({ row.event })
-            ns.GuildTab.Refresh()
-        end
-    end)
     -- Next week's event of a weekly one, not in the calendar yet: its button.
     row.Send = UI.Button(row, L["Create in calendar"], function()
         if row.event then
@@ -121,18 +100,11 @@ local function InitRow(row, element)
     row.event = event
     local signUps = Events.SignUps(event)
     row.Icon:SetTexture(UI.TYPE_ICONS[event.ty])
-    row.Title:SetText(event.x and ("%s (%s)"):format(event.ti, L["cancelled"]) or UI.EventTitle(event))
+    row.Title:SetText(UI.EventTitle(event))
     row.When:SetText(L["%s  ·  %s  ·  by %s"]:format(UI.DateText(event.tm), UI.KindText(event),
         Events.MemberName(event.owner) or "?"))
-    local counts = EventList.CountsText(event, signUps)
-    if event.x then
-        -- When it goes from the list by itself.
-        counts = ("%s  ·  %s"):format(counts, L["Leaves this list in %s"]:format(UI.LeavesIn(event)))
-    end
-    row.Counts:SetText(counts)
+    row.Counts:SetText(EventList.CountsText(event, signUps))
     row.Mine:SetText(EventList.MineText(Events.Mine(event, signUps)))
-    row.Cancelled:SetShown(event.x == true)
-    row.Clear:SetShown(event.x == true)
     local unsent = ns.Calendar.Unsent(event)
     local blocked = unsent and ns.Calendar.SendBlocked() or nil
     row.Send:SetShown(unsent)
@@ -166,38 +138,9 @@ function EventList.Create(parent)
     return list
 end
 
--- The events a list shows: which, "upcoming" or "past" (not cancelled), or
--- "cancelled" (upcoming or of the last week, the soonest first, but those
--- the player cleared).
+-- The events a list shows: which, "upcoming" or "past".
 function EventList.Events(which)
-    local events = {}
-    if which == "cancelled" then
-        for _, name in ipairs({ "upcoming", "past" }) do
-            for _, event in ipairs(Events.List(name)) do
-                if event.x and not UI.IsCleared(event) then
-                    events[#events + 1] = event
-                end
-            end
-        end
-        table.sort(events, function(a, b)
-            if a.tm ~= b.tm then
-                return a.tm < b.tm
-            end
-            return a.key < b.key
-        end)
-        return events
-    end
-    for _, event in ipairs(Events.List(which)) do
-        if not event.x then
-            events[#events + 1] = event
-        end
-    end
-    return events
-end
-
--- The cancelled ones, for Clear cancelled.
-function EventList.Cancelled()
-    return EventList.Events("cancelled")
+    return Events.List(which)
 end
 
 function EventList.Show(list, which)
@@ -206,8 +149,7 @@ function EventList.Show(list, which)
         elements[#elements + 1] = { event = event }
     end
     list.ScrollBox:SetDataProvider(CreateDataProvider(elements), ScrollBoxConstants and ScrollBoxConstants.RetainScrollPosition)
-    list.Empty:SetText(which == "past" and L["No events in the last week."]
-        or which == "cancelled" and L["No cancelled events."] or L["No upcoming events."])
+    list.Empty:SetText(which == "past" and L["No events in the last week."] or L["No upcoming events."])
     list.Empty:SetShown(#elements == 0)
     list.elements = elements
 end

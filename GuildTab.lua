@@ -1,8 +1,7 @@
 -- GuildTab.lua: a "Raids & Events" tab on the guild window, under Blizzard's
 -- own side tabs (Chat, Roster, Guild Info...). Its subtabs list the
--- upcoming events, those of the last week and the cancelled ones
--- (EventList.lua); a click on one opens it (EventView.lua). Under the list:
--- New event (EventForm.lua), and in Cancelled, Clear cancelled.
+-- upcoming events and those of the last week (EventList.lua); a click on
+-- one opens it (EventView.lua). Under the list: New event (EventForm.lua).
 --
 -- It only hooks and reads Blizzard's frames. It never changes the guild
 -- window's display mode, which would taint the window. Instead, it makes
@@ -38,7 +37,7 @@ local microMark      -- on the micro menu's button (CreateMicroMark)
 local remembered     -- the Blizzard tab that was selected when our panel opened
 local hiddenChatBar  -- the chat's scroll bar, while our panel hides it
 local faded = {}     -- [Blizzard frame] = its alpha, while our panel hides it
-local SUBTABS = { "upcoming", "past", "cancelled" }
+local SUBTABS = { "upcoming", "past" }
 local selected = 1
 
 -- The shared list -------------------------------------------------------------------
@@ -72,7 +71,6 @@ local function UpdateSubTabs()
     local texts = {
         unseen > 0 and ("%s (%d)"):format(L["Upcoming"], unseen) or L["Upcoming"],
         L["Last week"],
-        L["Cancelled events"],
     }
     for i, subtab in ipairs(page.SubTabs.Tabs) do
         subtab:SetText(texts[i])
@@ -83,19 +81,19 @@ end
 
 local UpdateBadge
 
--- The buttons under the list are as the game's at the bottom of the guild
--- window (Guild Settings, Invite Member): 20 high, at least 130 wide, 2
--- apart, 5 from the window's corner.
-local BUTTON_WIDTH, BUTTON_HEIGHT, BUTTON_GAP, BUTTON_PADDING, BUTTON_INSET = 130, 20, 2, 40, 5
+-- The button under the list is as the game's at the bottom of the guild
+-- window (Guild Settings, Invite Member): 20 high, at least 130 wide, 5
+-- from the window's corner.
+local BUTTON_WIDTH, BUTTON_HEIGHT, BUTTON_PADDING, BUTTON_INSET = 130, 20, 40, 5
 
 local function SizeAsTheGame(button)
     button:SetSize(math.max(BUTTON_WIDTH, math.ceil(button:GetTextWidth()) + BUTTON_PADDING), BUTTON_HEIGHT)
 end
 
 -- Under the list, on the right as the game's and the other guild tabs'
--- buttons: New event, always there (off, with why, while the game's
--- calendar does not let the player add events yet), Clear cancelled to its
--- left; on the left, why the calendar refused the last change.
+-- buttons: New event, out of an event's view (off, with why, while the
+-- game's calendar does not let the player add events yet); on the left,
+-- why the calendar refused the last change.
 local function UpdateButtons()
     local viewing = ns.EventView.Shown() ~= nil
     local reason
@@ -107,18 +105,10 @@ local function UpdateButtons()
     page.New:SetShown(not viewing)
     page.New:SetEnabled(reason == nil)
     page.New.reason = reason
-    page.Clear:SetShown(not viewing and SUBTABS[selected] == "cancelled" and #ns.EventList.Cancelled() > 0)
-    page.Clear:ClearAllPoints()
-    if page.New:IsShown() then
-        page.Clear:SetPoint("RIGHT", page.New, "LEFT", -BUTTON_GAP, 0)
-    else
-        page.Clear:SetPoint("BOTTOMRIGHT", page.New, "BOTTOMRIGHT")
-    end
-    local first = page.Clear:IsShown() and page.Clear or page.New:IsShown() and page.New or nil
     page.Hint:ClearAllPoints()
     page.Hint:SetPoint("LEFT", page.Content, "BOTTOMLEFT", 4, -15)
-    if first then
-        page.Hint:SetPoint("RIGHT", first, "LEFT", -8, 0)
+    if page.New:IsShown() then
+        page.Hint:SetPoint("RIGHT", page.New, "LEFT", -8, 0)
     else
         page.Hint:SetPoint("RIGHT", page.Content, "BOTTOMRIGHT", 0, -15)
     end
@@ -306,12 +296,6 @@ local function CreatePage()
     UI.SetTooltip(page.New, L["New event"], function(self)
         return self.reason
     end)
-    page.Clear = UI.Button(page, L["Clear cancelled"], function()
-        UI.Clear(ns.EventList.Cancelled())
-        RefreshPage()
-    end)
-    SizeAsTheGame(page.Clear)
-    UI.SetTooltip(page.Clear, L["Clear"], L["Deletes your cancelled events, for everyone; the others' leave only your list."])
     page.Hint = page:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     page.Hint:SetPoint("LEFT", page.Content, "BOTTOMLEFT", 4, -15)
     page.Hint:SetPoint("RIGHT", page.New, "LEFT", -8, 0)

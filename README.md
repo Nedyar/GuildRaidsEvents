@@ -8,10 +8,7 @@ linked to the game's calendar.
   (Chat, Roster, Guild Info...). It lists the guild's upcoming events, the
   soonest first, and those of the last week. Each row shows when the event
   is, its type and organizer, how many signed up in each role, and your
-  answer. Cancelled events have a subtab of their own, where each row says
-  how long until it leaves the list by itself (a week after the event's
-  start), and **Clear cancelled** (or a row's X) deletes your own cancelled
-  events, for everyone; the others' leave only this character's list.
+  answer.
 - **An event's view**: click a row. Its sign-ups show in three columns, tanks,
   healers and damage, each name in its class colour, with its state
   (in the game calendar's colours: signed up and confirmed in green, standby
@@ -38,18 +35,21 @@ linked to the game's calendar.
   time; a description, places per role (or no limit), a minimum level,
   whether it repeats every week, whether it confirms sign-ups automatically,
   and whether it is locked. **Create** puts it in the game's calendar first,
-  and the event comes into the addon once the calendar has it (so does
-  **Restore event**). The calendar has its own limit of events created; the
-  addon has none: if the calendar refuses one, nothing comes into the addon,
-  and Create, New event and Restore event stay off, with the game's message,
-  until one of your events leaves the calendar.
+  and the event comes into the addon once the calendar has it. The calendar
+  has its own limit of events created; the addon has none: if the calendar
+  refuses one, nothing comes into the addon, and Create and New event stay
+  off, with the game's message, until one of your events leaves the
+  calendar.
 - **Confirmations**: the event's organizer and its moderators click a
   name to give it one of the game's statuses: confirmed, standby, out or
   tentative. They also change the
-  event (**Edit**) or cancel it (**Cancel event**, which can be undone), as
-  far as the game's calendar lets them. An event that confirms sign-ups
+  event (**Edit**) or delete it (**Delete event**), as far as the game's
+  calendar lets them. An event that confirms sign-ups
   automatically confirms those who sign up in each role while it has
   places, in the order they signed up, and leaves the rest on standby.
+- **Deleting an event**, as in the game's calendar: **Delete event**
+  deletes it from the calendar first, then from the addon, for everyone.
+  There is no getting a deleted event back, and no list of them.
 - **Moderators**, as in the game's calendar: the organizer names them from
   a name's menu (**Set moderator**), among those in the event's list, and a
   moderator may name or take back others too, never the organizer. One who
@@ -57,9 +57,7 @@ linked to the game's calendar.
   does not make them one again. They are marked as the game's calendar
   marks them, and kept in step with it both ways. A moderator's client keeps
   the event in step with the calendar as its organizer's does, also while
-  the organizer is away; only the organizer restores a cancelled event
-  (it is made again in the calendar, as theirs). Guild ranks give no rights
-  over an event.
+  the organizer is away. Guild ranks give no rights over an event.
 - **Locked events**: the game's **Lock event**, in the form. Members then
   cannot sign up, answer tentative or remove their sign-up, in the addon as
   in the game's calendar; the organizer still changes their own state and
@@ -67,15 +65,15 @@ linked to the game's calendar.
   week's event of a weekly one takes answers again.
 - **The game's calendar, both ways**: each event is also a guild sign-up
   event in the calendar, and the two stay in step wherever a change is
-  made, also with the calendar's window open. **Create**, **Save**,
-  **Cancel event** and **Restore event** change the calendar with the same
-  click, the calendar first: the addon takes the change only once the
-  calendar has taken it, and when the game refuses it, nothing changes and
-  the addon says why (**Save** stays off, saying why, while the game would
-  not take it). What you change in the calendar's window (title, time, type,
-  description, whether it is locked, the statuses of the sign-ups) comes
-  into the addon; an
-  event deleted there is cancelled in the addon; a guild event you create
+  made, also with the calendar's window open. **Create**, **Save** and
+  **Delete event** change the calendar with the same click, the calendar
+  first: the addon takes the change only once the calendar has taken it,
+  and when the game refuses it, nothing changes and the addon says why
+  (**Save** stays off, saying why, while the game would not take it). What
+  you change in the calendar's window (title, time, type, description,
+  whether it is locked, the statuses of the sign-ups) comes into the addon;
+  an event deleted there is deleted from the addon, for everyone, once the
+  calendar's data, asked for again, still lacks it; a guild event you create
   there comes into the addon as yours; a sign-up made there counts as made
   in the addon. Your own answer, and the confirmations of the events you
   organize, reach the calendar by themselves. When both sides changed the
@@ -142,8 +140,8 @@ characters' clients add them by the name of the guild member who signed up.
 | `GuildRaidsEvents.OnChange(callback)` | Calls `callback()` whenever the events change |
 
 An event is `{ key, title, type, start, startUnix, description, organizer,
-organizerGUID, slots, minLevel, weekly, autoConfirm, locked, cancelled,
-calendarID, changed, signUps }`: `type` is `"raid"`, `"dungeon"`, `"pvp"`, `"meeting"`
+organizerGUID, slots, minLevel, weekly, autoConfirm, locked, calendarID,
+changed, signUps }`: `type` is `"raid"`, `"dungeon"`, `"pvp"`, `"meeting"`
 or `"other"`; `start` is the game's calendar time (the server's) as seconds
 as if it were UTC, and `startUnix` the same moment as a Unix time; `slots`
 is `{ tank, healer, damage }`, or nil for no limit. A sign-up is `{ name,

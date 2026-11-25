@@ -186,6 +186,22 @@ guild.members[officer].pe[eventKey].at = now
 Events.Invalidate()
 H.eq(Events.Get(eventKey).ti, "Molten Core (organizer)", "a moderator taken back no longer counts")
 guild.members[officer].pe, guild.members[officer].mo, guild.members[member].mo = nil, nil, nil
+-- Deleting it: for everyone, with no getting it back.
+guild.members[other].pe = { [eventKey] = { ty = 0, ti = "Molten Core", tm = base.tm, ml = 0, at = now, x = true } }
+Events.Invalidate()
+H.check(Events.Get(eventKey) ~= nil and Events.Deleted()[eventKey] == nil, "someone who is no moderator cannot delete it")
+guild.members[other].pe = nil
+guild.members[member].mo = { [eventKey] = { [officer] = { on = true, at = now - 80 } } }
+guild.members[officer].pe = { [eventKey] = { ty = 0, ti = "Molten Core", tm = base.tm, ml = 0, at = now - 200, x = true } }
+Events.Invalidate()
+H.check(Events.Get(eventKey) == nil and Events.Deleted()[eventKey] ~= nil, "a moderator's deletion counts, older than the organizer's change too")
+H.eq(#Events.List("upcoming"), 0, "and the event is listed no more")
+guild.members[officer].pe, guild.members[member].mo = nil, nil
+base.x = true
+Events.Invalidate()
+H.check(Events.Get(eventKey) == nil and Events.Deleted()[eventKey] ~= nil, "an event 0.1.0's first builds cancelled is deleted now")
+base.x = nil
+Events.Invalidate()
 
 H.section("Events: sign-ups, statuses and confirming by itself")
 local event
@@ -262,14 +278,20 @@ H.check(created ~= nil and Events.Get(created) ~= nil and Events.Get(created).ow
 H.check(Events.Get(created).de == nil and Events.Get(created).ci == 0, "with no description and not in the calendar yet")
 H.check(Events.Change(created, { ty = 1, ti = "Scholomance!", tm = Events.Get(created).tm, ml = 55 }), "changing it")
 H.check(Events.Get(created).ti == "Scholomance!" and Events.Get(created).sl == nil, "every field as the form left them")
-H.check(Events.Cancel(created), "cancelling it")
-H.check(Events.Get(created).x == true, "it is marked cancelled")
-H.check(Events.Change(created, { ty = 1, ti = "Scholomance", tm = Events.Get(created).tm, ml = 55 }), "changing it again")
-H.check(Events.Get(created).x == true, "keeps it cancelled")
-H.check(Events.Cancel(created, false) and not Events.Get(created).x, "and it can be brought back")
+H.check(Events.Delete(created), "deleting it")
+H.check(Events.Get(created) == nil and Events.Deleted()[created] == nil, "it is gone from its organizer's record")
+H.check(guild.members[solo.guid].su[created] == nil and guild.members[solo.guid].ms[created] == nil,
+    "with their sign-up and the statuses they gave in it")
+H.check(not Events.Change(created, { ty = 1, ti = "Scholomance", tm = Events.Now() + 86400, ml = 55 }), "and it cannot be changed again")
+created = Events.Create({ ty = 1, ti = "Scholomance", tm = Events.Now() + 86400, de = "", ml = 55 })
 H.check(Events.Change(eventKey, { ty = 0, ti = "Molten Core (by the master)", tm = event.tm, ml = 0 }), "a moderator (the guild master, named) changes a member's event")
 H.check(guild.members[solo.guid].pe[eventKey] ~= nil and Events.Get(eventKey).ti == "Molten Core (by the master)",
     "in their own record")
+H.check(not Events.Purge(eventKey), "nothing to take out of a record while it is not deleted")
+H.check(Events.Delete(eventKey), "a moderator deletes it")
+H.check(guild.members[solo.guid].pe[eventKey].x and Events.Get(eventKey) == nil and Events.Deleted()[eventKey] ~= nil,
+    "in their own record too; it stays in its organizer's until their client takes it out")
+H.check(not Events.Purge(eventKey) and #guild.members[member].ev == 1, "which only its organizer's does")
 H.check(Events.Answer(created, Events.TENTATIVE, Events.HEALER, "  maybe  "), "answering")
 local mine = Events.Mine(Events.Get(created))
 H.check(mine and mine.st == Events.TENTATIVE and mine.ro == Events.HEALER and mine.no == "maybe", "the answer, its note trimmed")

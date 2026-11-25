@@ -1,11 +1,12 @@
 -- CalendarOrganizer.lua: the events the player organizes or moderates, in
 -- the game's calendar (see Calendar.lua). The clients of an event's
 -- organizer and of its moderators keep each field in step both ways and
--- cancel it when it is deleted in the game's calendar window; only the
--- organizer's, which created its calendar event, links new events to their
--- calendar event, adds those made in that window, deletes copies of an
--- event, and deletes calendar events with no click (only the open event can
--- be deleted).
+-- delete it from the addon when it is deleted in the game's calendar
+-- window; only the organizer's, which created its calendar event, links
+-- new events to their calendar event, adds those made in that window,
+-- takes out of its record those a moderator deleted, deletes copies of an
+-- event, and deletes calendar events with no click (only the open event
+-- can be deleted).
 local _, ns = ...
 local L = ns.L
 
@@ -18,9 +19,9 @@ local Plain = Read.Plain
 local DELETE_RETRY = 30      -- seconds between two tries to delete one calendar event
 local BLOCKED_WAIT = 600     -- and more after the game refused it (it wanted a click)
 
--- Our calendar events found missing: [key] = { at = GetTime(), reads }.
--- Deleted only if still missing once the calendar's data came again (asked
--- for at once), not while it is still loading.
+-- The calendar events of the events we watch found missing: [key] = { at =
+-- GetTime(), reads }. Deleted only if still missing once the calendar's
+-- data came again (asked for at once), not while it is still loading.
 local missing = {}
 local seen = {}              -- [key] = true: its calendar event was seen in this session
 local deleteTried = {}       -- [event ID] = GetTime() of the last try to delete it
@@ -54,8 +55,9 @@ function Organizer.Agree(key, event)
     Read.State("known")[key] = { ti = event.ti, tm = event.tm, ty = event.ty, de = event.de or "", lk = event.lk == true }
 end
 
--- One of our events linked to a calendar event made anew (restoring it):
--- the statuses go to it from the addon, as nothing was agreed with it.
+-- One of our events linked to a calendar event (new, or a copy that stands
+-- for it): the statuses go to it from the addon, as nothing was agreed
+-- with it.
 function Organizer.Linked(key, calendarID)
     Read.State("statuses")[key], Read.State("moderators")[key] = nil, nil
     Statuses.Forget(key)
@@ -67,7 +69,7 @@ function Organizer.Link()
     local used = Read.UsedIDs()
     local created = Read.State("created")
     for key, event in pairs(Events.All()) do
-        if event.owner == ns.playerGUID and event.ci == 0 and not event.x then
+        if event.owner == ns.playerGUID and event.ci == 0 then
             local copy = Read.Copies(event, used)[1]
             if copy then
                 used[copy.id] = true
@@ -153,11 +155,9 @@ end
 
 -- The clients of an event's organizer and of its moderators: what the
 -- calendar shows of it, into the addon. A calendar event missing for a
--- while: deleted there, so the event is cancelled (or, when the organizer
--- deleted it and it was restored since, created again).
+-- while: deleted there, so the event is deleted from the addon too.
 function Organizer.Watch()
     local now, clock = Events.Now(), GetTime()
-    local gone, known, byCalendar = Read.State("gone"), Read.State("known"), Read.State("byCalendar")
     local used = Read.UsedIDs()
     for key, event in pairs(Events.All()) do
         local mine = event.owner == ns.playerGUID
@@ -173,38 +173,35 @@ function Organizer.Watch()
             if entry then
                 seen[key] = true
             end
-            if entry and event.x and byCalendar[key] then
-                -- Back in the calendar: it was not deleted after all.
-                byCalendar[key], gone[key] = nil, nil
-                Events.Cancel(key, false)
-            elseif entry or listed then
+            if entry or listed then
                 missing[key] = nil
-                if not event.x then
-                    local ev = entry and entry.ev
-                    Reconcile(key, event, {
-                        ti = Plain(entry and ev.title or listed.title),
-                        tm = entry and Read.StartOf(ev.startTime) or Events.Naive(listed.year, listed.month,
-                            listed.monthDay, listed.hour, listed.minute),
-                        ty = Read.TypeOf(Plain(entry and ev.eventType or listed.eventType)),
-                        -- The guild's list does not say whether it is locked.
-                        lk = entry and Read.IsLocked(ev),
-                    })
-                end
-            elseif event.x and Read.InRange(event.tm) then
-                gone[key] = true
+                local ev = entry and entry.ev
+                Reconcile(key, event, {
+                    ti = Plain(entry and ev.title or listed.title),
+                    tm = entry and Read.StartOf(ev.startTime) or Events.Naive(listed.year, listed.month,
+                        listed.monthDay, listed.hour, listed.minute),
+                    ty = Read.TypeOf(Plain(entry and ev.eventType or listed.eventType)),
+                    -- The guild's list does not say whether it is locked.
+                    lk = entry and Read.IsLocked(ev),
+                })
+            elseif Read.InRange(event.tm) and not mine and (not seen[key] or Read.GuildEntry(event.ci)) then
+                -- A moderator's client says nothing of one it has not seen
+                -- in this session (the one it knows may be one a copy
+                -- stands for since), nor of one still in the guild's list:
+                -- only gone from their own calendar for a while.
+                missing[key] = nil
             elseif Read.InRange(event.tm) then
-                -- Gone from the calendar: deleted there. At once if it was
-                -- seen in this session; else, for its organizer, once the
-                -- calendar's data came again, so not while it is still
-                -- loading (a moderator's client waits to have seen it: the
-                -- one it knows may be one the organizer made anew since).
-                local deleted = seen[key]
-                if not deleted and mine and not missing[key] then
+                -- Gone from the calendar: deleted there, as the event will
+                -- be for good. Only once the calendar's data came again
+                -- (asked for at once) and still lacks it, so not while it
+                -- is still loading.
+                local deleted = false
+                if not missing[key] then
                     missing[key] = { at = clock, reads = Read.reads }
                     ns.Try(C_Calendar.OpenCalendar)
-                elseif not deleted and mine and Read.reads > missing[key].reads then
+                elseif Read.reads > missing[key].reads then
                     deleted = true
-                elseif not deleted and mine and clock - missing[key].at > 3 then
+                elseif clock - missing[key].at > 3 then
                     missing[key].at = clock
                     ns.Try(C_Calendar.OpenCalendar)
                 end
@@ -215,13 +212,9 @@ function Organizer.Watch()
                         -- Another of its copies stands for it.
                         used[copy.id] = true
                         Organizer.Linked(key, copy.id)
-                    elseif mine and gone[key] then
-                        gone[key], known[key] = nil, nil
-                        Events.SetCalendarID(key, 0)
                     else
-                        gone[key], byCalendar[key] = true, true
-                        Note("from the calendar", "deleted there, so cancelled: " .. event.ti)
-                        Events.Cancel(key)
+                        Note("from the calendar", "deleted there, so deleted from the addon: " .. event.ti)
+                        Organizer.Remove(key)
                     end
                 end
             end
@@ -264,7 +257,7 @@ end
 function Organizer.ReconcileOpen(key)
     local event = Events.Get(key)
     local info = ns.Try(C_Calendar.GetEventInfo)
-    if not event or not ns.Rights.MayIManage(event) or event.x or Send.InFlight(key) or not ns.CanRead(info) then
+    if not event or not ns.Rights.MayIManage(event) or Send.InFlight(key) or not ns.CanRead(info) then
         return
     end
     Reconcile(key, event, {
@@ -275,22 +268,16 @@ end
 
 -- Deleting ----------------------------------------------------------------------------------------
 
--- One of our calendar events to delete (no click needed): a cancelled
--- event's, or a copy of one of our events. key, entry, whether it is the
--- event's own.
+-- One of our calendar events to delete (no click needed): a copy of one of
+-- our events, or one of an event deleted from the addon (a stray). key,
+-- entry, whether it is the event's own (never, here).
 local function ToDelete()
     local used = Read.UsedIDs()
     for key, event in pairs(Events.All()) do
-        if event.owner == ns.playerGUID and not Send.InFlight(key, "delete") and not Read.State("byCalendar")[key]
-                and not Calendar.Restoring(key) then
-            local entry = Read.Find(event.ci)
-            if event.x and entry then
-                return key, entry, true
-            elseif event.x or entry then
-                local copy = Read.Copies(event, used)[1]
-                if copy then
-                    return key, copy, false
-                end
+        if event.owner == ns.playerGUID and not Send.InFlight(key, "delete") and Read.Find(event.ci) then
+            local copy = Read.Copies(event, used)[1]
+            if copy then
+                return key, copy, false
             end
         end
     end
@@ -317,11 +304,7 @@ local function RemoveOpen(key, entry, main)
         Note("delete", "not sent: the game says it cannot be deleted now")
         return false, why
     end
-    local item
-    if main then
-        item = Send.Put("delete", key)
-        Read.State("gone")[key] = true
-    end
+    local item = main and Send.Put("delete", key) or nil
     if Send.Try("delete", item, function()
         C_Calendar.ContextMenuSelectEvent(entry.offset, entry.day, entry.index)
         C_Calendar.ContextMenuEventRemove()
@@ -373,7 +356,7 @@ function Organizer.Delete(key, entry, main, failed)
     return false, true
 end
 
--- A delete asked for in a click (Cancel event) is tried at once.
+-- A delete asked for in a click (Delete event) is tried at once.
 function Organizer.ForgetTried(calendarID)
     deleteTried[calendarID] = nil
 end
@@ -408,18 +391,44 @@ function Organizer.KeepOpen(key)
     return true
 end
 
--- One of the player's events deleted from the addon (Calendar.Delete):
--- what the calendar knew of it goes; its calendar event, if still there, is
--- deleted too (ToDelete), and never taken into the addon again (Adopt).
-function Organizer.Forget(key, event)
-    for _, name in ipairs({ "known", "created", "gone", "byCalendar", "answers", "statuses", "moderators" }) do
+-- An event deleted from the addon: what the calendar knew of it goes. The
+-- calendar event of one of the player's own, if still there, is deleted
+-- too (ToDelete), and never taken into the addon again (Adopt).
+local function Forget(key, event)
+    for _, name in ipairs({ "known", "created", "answers", "statuses", "moderators" }) do
         Read.State(name)[key] = nil
     end
     Send.Forget(key)
     Statuses.Forget(key)
     Member.Forget(key)
     missing[key], seen[key] = nil, nil
-    if event.ci ~= 0 then
+    if event.owner == ns.playerGUID and event.ci ~= 0 then
         Read.State("strays")[event.ci] = event.tm
+    end
+end
+
+-- Deletes an event the player may manage from the addon, for everyone
+-- (Events.Delete), once its calendar event is gone or when it has none.
+-- Whether it did.
+function Organizer.Remove(key)
+    local event = Events.Get(key)
+    if not event then
+        return false
+    end
+    Forget(key, event)
+    return Events.Delete(key)
+end
+
+-- A step of the look at the calendar (Tick), before any other: the
+-- player's own events a moderator deleted go from their record too, and
+-- their calendar events from the calendar (a moderator deletes them there
+-- first; one still shown is a stray).
+function Organizer.Purge()
+    for key, event in pairs(Events.Deleted()) do
+        if event.owner == ns.playerGUID then
+            Forget(key, event)
+            Events.Purge(key)
+            Note("delete", "deleted, so out of the record: " .. tostring(event.ti))
+        end
     end
 end

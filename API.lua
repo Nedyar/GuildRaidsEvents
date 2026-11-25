@@ -24,7 +24,7 @@
 -- startUnix (the same moment as a Unix time), description, organizer (a
 -- name), organizerGUID, slots ({ tank, healer, damage } or nil: no limit),
 -- minLevel, weekly, autoConfirm, locked (members cannot answer it),
--- cancelled, calendarID (or nil), changed
+-- calendarID (or nil), changed
 -- (Unix time), signUps }. A sign-up: { name, guid, class, level, status,
 -- role, note, time (Unix time of the answer), manage ("confirmed",
 -- "standby", "out", "tentative" or nil), auto (the event set manage by itself),
@@ -60,7 +60,6 @@ local function Copy(event, offset)
         description = event.de, organizer = Events.MemberName(event.owner), organizerGUID = event.owner,
         slots = event.sl and { tank = event.sl.t, healer = event.sl.h, damage = event.sl.d } or nil,
         minLevel = event.ml or 0, weekly = event.wk == true, autoConfirm = event.ac == true, locked = event.lk == true,
-        cancelled = event.x == true,
         calendarID = event.ci ~= 0 and event.ci or nil, changed = event.at, signUps = signUps,
     }
 end

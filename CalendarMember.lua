@@ -38,7 +38,7 @@ end
 function Member.AnswerToSend(now)
     local answers = Read.State("answers")
     for key, event in pairs(Events.All()) do
-        if event.owner ~= ns.playerGUID and event.ci ~= 0 and not event.x and event.tm > Events.Now() then
+        if event.owner ~= ns.playerGUID and event.ci ~= 0 and event.tm > Events.Now() then
             local entry = Read.Find(event.ci)
             local listed = not entry and Read.GuildEntry(event.ci)
             local status = entry and Plain(entry.ev.inviteStatus) or listed and Plain(listed.inviteStatus)

@@ -49,15 +49,11 @@ end
 --   known[key] = { ti, tm, ty, de, lk }: one of its events as the calendar and
 --     the addon last agreed on it;
 --   created[key] = server time it was sent to the calendar, until seen there;
---   gone[key] = true: its calendar event is gone while it was cancelled, so
---     restoring it creates it again;
---   byCalendar[key] = true: cancelled because its calendar event went; if
---     that comes back, the event is restored, never deleted;
 --   answers[key] = { ci, a = "signed", "tentative" or "none" }: the
 --     player's answer as the calendar event ci and the addon last agreed on
---     it (a calendar event made again, restoring the event, agreed nothing);
+--     it (another calendar event standing for the event agreed nothing);
 --   statuses[key] = { [GUID] = calendar status }: likewise, the statuses of
---     its sign-ups (forgotten when its calendar event is made again);
+--     its sign-ups (forgotten when another calendar event stands for it);
 --   moderators[key] = { [GUID] = true or false }: likewise, its moderators;
 --   strays[event ID] = start: calendar events of events deleted from the
 --     addon, deleted from the calendar too and never taken into the addon.
@@ -156,16 +152,19 @@ end
 -- for a while, as after they take their sign-up back (about an hour): the
 -- game takes no answer from them until it shows there again.
 function Calendar.HiddenFromMe(event)
-    return Read.scanned and event.ci ~= 0 and not event.x and Read.InRange(event.tm) and found[event.ci] == nil
+    return Read.scanned and event.ci ~= 0 and Read.InRange(event.tm) and found[event.ci] == nil
         and Read.GuildEntry(event.ci) ~= nil
 end
 
--- The calendar IDs our events are linked to.
+-- The calendar IDs our events are linked to (those deleted too, until
+-- their organizer's record lets them go).
 function Read.UsedIDs()
     local used = {}
-    for _, event in pairs(Events.All()) do
-        if event.ci ~= 0 then
-            used[event.ci] = true
+    for _, list in ipairs({ Events.All(), Events.Deleted() }) do
+        for _, event in pairs(list) do
+            if event.ci ~= 0 then
+                used[event.ci] = true
+            end
         end
     end
     return used

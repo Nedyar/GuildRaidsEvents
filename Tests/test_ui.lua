@@ -84,7 +84,7 @@ world:RunFor(1)
 local view = memberPage.View
 H.check(view:IsShown() and not list:IsShown(), "a row's click opens the event in place of the list")
 H.check(view.Title:GetText() == "Molten Core", "with its title")
-H.check(not view.Edit:IsShown() and not view.Cancel:IsShown(), "a member does not manage it")
+H.check(not view.Edit:IsShown() and not view.Delete:IsShown(), "a member does not manage it")
 member.level = 40
 member.ns.EventView.Refresh()
 H.check(not view.SignUp:IsEnabled() and view.SignUp.reason ~= nil, "below its minimum level, the member cannot sign up")
@@ -145,8 +145,9 @@ H.Click(tab)
 ns.EventView.Open(key)
 world:RunFor(1)
 local orgView = page.View
-H.check(orgView.Edit:IsShown() and orgView.Cancel:IsShown(), "the organizer may change and cancel it")
-H.check(not orgView.Delete:IsShown(), "no Delete while it is not cancelled")
+H.check(orgView.Edit:IsShown() and orgView.Delete:IsShown(), "the organizer may change and delete it")
+H.check(orgView.Delete:GetText() == "Delete event" and orgView.Delete._point[2] == orgView.Back
+    and orgView.Edit._point[2] == orgView.Delete, "Delete event left of Back, Edit left of it")
 local healer = orgView.Columns[2].Names[1]
 H.check(healer.signUp ~= nil and healer.signUp.guid == member.guid, "the member's sign-up is in the healers' column")
 H.Click(healer)
@@ -281,12 +282,6 @@ world:RunFor(2)
 H.check(MineOf(organizer).status == 2 and ns.States.Goes(MineOf(organizer)), "Standby: on standby")
 H.Click(orgView.Confirm)
 world:RunFor(2)
-H.Click(orgView.Cancel)
-world:RunFor(5)
-H.check(ns.Events.Get(key).x and orgView.Cancel:GetText() == "Restore event", "Cancel event cancels it, and the button restores it")
-H.Click(orgView.Cancel)
-world:RunFor(5)
-H.check(not ns.Events.Get(key).x, "restored")
 
 local sorted = ns.EventView.SortColumn({
     { st = 1, status = 2, order = 1, name = "standby" }, { st = 2, status = 0, order = 2, name = "tentative" },
@@ -514,74 +509,16 @@ for _, one in ipairs(ns.Events.List("upcoming")) do
     end
 end
 ns.EventView.Open(waitingKey)
-H.Click(orgView.Cancel)
-world:RunFor(5)
-H.check(ns.Events.Get(waitingKey).x, "one not in the calendar yet, cancelled")
 local addsThen = AddEvents()
-H.Click(orgView.Cancel)
+H.Click(orgView.Delete)
+H.eq(ns.Events.Get(waitingKey), nil, "one not in the calendar yet: Delete event deletes it from the addon at once")
 world:RunFor(5)
-local back = ns.Events.Get(waitingKey)
-H.check(not back.x and back.ci == 0 and orgView.Send:IsShown(), "restored as it was: waiting for its own button")
-H.eq(AddEvents(), addsThen, "nothing created in the calendar by restoring it")
+H.check(not orgView:IsShown(), "and the view goes back to the list")
+H.eq(AddEvents(), addsThen, "nothing created in the calendar")
 ns.EventView.Close()
 Errors("weekly events")
 
-H.section("UI: cancelled events, in their own subtab")
-H.check(ns.Events.Cancel(key), "the organizer cancels an event")
-world:RunFor(30)
-member.ns.GuildTab.Refresh()
-local function Listed(listPage, wanted)
-    for _, element in ipairs(listPage.List.elements) do
-        if element.event.key == wanted then
-            return element
-        end
-    end
-end
-H.check(Listed(memberPage, key) == nil, "a cancelled event leaves Upcoming")
-H.check(not memberPage.Clear:IsShown(), "where Clear cancelled does not show")
-local cancelledTab = memberPage.SubTabs.Tabs[3]
-H.check(cancelledTab ~= nil and cancelledTab:GetText() == "Cancelled events", "a subtab of its own for the cancelled ones")
-H.Click(cancelledTab)
-local cancelledRow = Listed(memberPage, key)
-H.check(cancelledRow ~= nil, "which lists it")
-H.check(memberPage.Clear:IsShown(), "with Clear cancelled")
-local clearPoint = memberPage.Clear._point
-H.check(clearPoint[1] == "RIGHT" and clearPoint[2] == memberPage.New and clearPoint[3] == "LEFT" and clearPoint[4] == -2,
-    "left of New event, 2 apart as the game's buttons, never over it")
-member.ns.EventList.InitRow(row, cancelledRow)
-H.check(row.Clear:IsShown(), "and its row has its own button to clear it")
-H.check(row.Counts:GetText():find("Leaves this list in %d+ Days$") ~= nil,
-    "and says how long until it leaves the list by itself, in the game's words")
-member.ns.db.settings.cleared = { [key] = 1 }
-H.Click(row.Clear)
-H.check(Listed(memberPage, key) == nil and not memberPage.Clear:IsShown(), "it goes from the member's list")
-H.check(member.ns.Data.OwnState().cleared[key] ~= nil and member.ns.db.settings.cleared == nil,
-    "hidden for this character only (the account-wide list of the first builds forgotten)")
-H.check(member.ns.Events.Get(key) ~= nil, "the event itself stays")
-ns.EventView.Close()
-H.Click(page.SubTabs.Tabs[3])
-H.check(page.Clear:IsShown(), "and stays in the others' lists")
-H.check(ns.Events.Cancel(scholo.key), "the organizer cancels the other one")
-world:RunFor(30)
-member.ns.GuildTab.Refresh()
-H.Click(memberPage.Clear)
-H.check(#memberPage.List.elements == 0 and not memberPage.Clear:IsShown(), "Clear cancelled clears every cancelled one")
-H.check(memberPage.List.Empty:IsShown() and memberPage.List.Empty:GetText() == "No cancelled events.",
-    "and the subtab says it has none")
-H.check(member.ns.Events.Cancel(scholo.key, false) == false, "a member may not restore it")
-H.check(ns.Events.Cancel(scholo.key, false), "once restored by the organizer")
-world:RunFor(30)
-H.Click(memberPage.SubTabs.Tabs[1])
-H.check(Listed(memberPage, scholo.key) ~= nil, "it is in Upcoming again")
-H.check(ns.Events.Get(key) ~= nil and ns.Events.Get(key).x, "the organizer still has their other cancelled event")
-ns.GuildTab.Refresh()
-H.Click(page.Clear)
-H.eq(ns.Events.Get(key), nil, "their Clear cancelled deletes their own cancelled events")
-world:RunFor(30)
-H.eq(member.ns.Events.Get(key), nil, "for everyone")
-H.check(ns.Events.Get(scholo.key) ~= nil, "and nothing else")
-H.check(ns.Events.Cancel(scholo.key), "the organizer cancels their other event")
-world:RunFor(5)
+H.section("UI: the game's limit of events created")
 local madeByOrganizer = 0
 for _, one in pairs(world.calendar.events) do
     if not one.deleted and one.creator == organizer.guid then
@@ -601,24 +538,39 @@ H.check(limitForm:IsShown() and not limitForm.Save:IsEnabled() and limitForm.Sav
 limitForm:Hide()
 ns.GuildTab.Refresh()
 H.check(not page.New:IsEnabled() and page.New.reason == LIMIT, "New event too")
-ns.EventView.Open(scholo.key)
-H.check(not orgView.Cancel:IsEnabled() and orgView.Cancel:GetText() == "Restore event",
-    "and Restore event")
-H.eq(orgView.Cancel.reason, LIMIT, "saying why")
 organizer.eventLimit = nil
-local deletePoint = orgView.Delete._point
-H.check(orgView.Delete:IsShown() and deletePoint[1] == "RIGHT" and deletePoint[2] == orgView.Edit and deletePoint[3] == "LEFT",
-    "a cancelled event of one's own: Delete, left of Edit")
-H.check(orgView.Title._point[2] == orgView.Delete, "the title stops before it")
-member.ns.EventView.Open(scholo.key)
-H.check(member.ns.EventView.Shown() == scholo.key and not view.Delete:IsShown(), "not for others")
+Errors("the limit")
+
+H.section("UI: deleting an event")
+local function Listed(listPage, wanted)
+    for _, element in ipairs(listPage.List.elements) do
+        if element.event.key == wanted then
+            return element
+        end
+    end
+end
+H.check(#page.SubTabs.Tabs == 2 and page.SubTabs.Tabs[2]:GetText() == "Last week",
+    "two subtabs, upcoming and last week: a deleted event is gone, with no subtab of its own")
+H.Click(memberPage.SubTabs.Tabs[1])
+H.check(Listed(memberPage, scholo.key) ~= nil, "an event in the member's list")
+ns.EventView.Open(scholo.key)
+H.check(orgView.Delete:IsEnabled() and orgView.Delete.reason == "Deletes this event, for everyone.",
+    "Delete event says what it does")
+H.check(orgView.Title._point[2] == orgView.Edit, "the title stops before Edit")
 H.Click(orgView.Delete)
-H.eq(ns.Events.Get(scholo.key), nil, "Delete deletes it")
-H.check(not orgView:IsShown(), "and goes back to the list")
+ns.EventView.UpdateControls()
+H.check(ns.Events.Get(scholo.key) == nil or not orgView.Delete:IsEnabled() and orgView.Delete.reason == "Syncing the calendar...",
+    "off while the calendar deletes it")
+world:RunFor(5)
+H.eq(ns.Events.Get(scholo.key), nil, "deleted, the calendar first")
+H.check(world.calendar.events[scholo.ci].deleted, "from the calendar too")
+H.check(not orgView:IsShown(), "and the view goes back to the list")
 world:RunFor(30)
-H.eq(member.ns.Events.Get(scholo.key), nil, "for everyone")
-ns.EventView.Close()
-Errors("cancelled events")
+member.ns.GuildTab.Refresh()
+H.check(member.ns.Events.Get(scholo.key) == nil and Listed(memberPage, scholo.key) == nil, "gone from everyone's list")
+ns.GuildTab.Refresh()
+H.check(page.New:IsEnabled(), "one of theirs gone from the calendar: New event is on again")
+Errors("deleting an event")
 
 H.section("UI: an event that comes to its end, the window open")
 H.Click(Tab(member))

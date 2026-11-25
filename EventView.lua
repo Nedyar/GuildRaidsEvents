@@ -6,7 +6,7 @@
 -- under them, those left out; and the
 -- player's own answer: their role, a note, and Sign up, Tentative or Remove
 -- sign-up, as the game's calendar offers them. Those who may manage the
--- event (Rights.lua) also change it (EventForm.lua), cancel it, and give
+-- event (Rights.lua) also change it (EventForm.lua), delete it, and give
 -- each sign-up one of the game's statuses from its menu (a click on its
 -- name, in a column or in those lines).
 local _, ns = ...
@@ -324,19 +324,13 @@ function EventView.Create(parent)
         EventView.Close()
     end)
     view.Back:SetPoint("TOPRIGHT", -4, -4)
-    -- The game's calendar first, inside the click, then our record.
-    view.Cancel = UI.Button(view, L["Cancel event"], function()
-        local event = Events.Get(shownKey)
-        if not event then
-            return
-        elseif event.x then
-            ns.Calendar.Restore(event.key)
-        else
-            ns.Calendar.Cancel(event.key)
-        end
+    -- Deleted for everyone, as the game's calendar deletes an event: the
+    -- calendar first, then our records.
+    view.Delete = UI.Button(view, L["Delete event"], function()
+        ns.Calendar.Delete(shownKey)
     end)
-    view.Cancel:SetPoint("RIGHT", view.Back, "LEFT", -4, 0)
-    UI.SetTooltip(view.Cancel, function(self)
+    view.Delete:SetPoint("RIGHT", view.Back, "LEFT", -4, 0)
+    UI.SetTooltip(view.Delete, function(self)
         return self:GetText()
     end, function(self)
         return self.reason
@@ -344,15 +338,7 @@ function EventView.Create(parent)
     view.Edit = UI.Button(view, L["Edit"], function()
         ns.EventForm.Open(shownKey)
     end)
-    view.Edit:SetPoint("RIGHT", view.Cancel, "LEFT", -4, 0)
-    -- A cancelled event of one's own is deleted, for everyone (and from the
-    -- game's calendar, if still there), as clearing it does.
-    view.Delete = UI.Button(view, DELETE or L["Delete"], function()
-        if ns.Calendar.Delete(shownKey) then
-            EventView.Close()
-        end
-    end)
-    view.Delete:SetPoint("RIGHT", view.Edit, "LEFT", -4, 0)
+    view.Edit:SetPoint("RIGHT", view.Delete, "LEFT", -4, 0)
     -- Next week's event of a weekly one, not in the game's calendar yet: its
     -- click creates it there (restricted: the call goes first in the click).
     view.Send = UI.Button(view, L["Create in calendar"], function()
@@ -364,9 +350,6 @@ function EventView.Create(parent)
     end, function(self)
         return self.reason
     end)
-    UI.SetTooltip(view.Delete, function(self)
-        return self:GetText()
-    end, L["Deletes this cancelled event, for everyone."])
 
     view.Columns = {}
     for role = Events.TANK, Events.DAMAGE do
@@ -407,9 +390,6 @@ local function DetailsText(event)
         parts[#parts + 1] = L["Every week"]
     end
     parts[#parts + 1] = event.ac and L["Confirms sign-ups automatically"] or L["The organizer confirms"]
-    if event.x then
-        parts[#parts + 1] = "|cffff4040" .. L["Cancelled"] .. "|r"
-    end
     return table.concat(parts, "  ·  ")
 end
 
@@ -445,10 +425,7 @@ function EventView.Refresh()
     view.Details:SetText(DetailsText(event))
     view.Description:SetText(event.de or "")
     view.Edit:SetShown(manager)
-    view.Cancel:SetShown(manager)
-    view.Delete:SetShown(event.x == true and event.owner == ns.playerGUID)
-    view.Cancel:SetText(event.x and L["Restore event"] or L["Cancel event"])
-    view.Cancel:SetWidth(math.max(view.Cancel:GetTextWidth() + 28, 80))
+    view.Delete:SetShown(manager)
 
     -- By role, all but those left out, who go under the columns. Each
     -- column: confirmed, signed up, tentative, standby; then in the order
@@ -508,28 +485,20 @@ function EventView.UpdateControls(signUps)
     view.Send:SetShown(unsent)
     view.Send:SetEnabled(unsent and not blocked)
     view.Send.reason = blocked or L["Not in the game's calendar yet: this click creates it there."]
-    local first = view.Delete:IsShown() and view.Delete or unsent and view.Send or view.Edit:IsShown() and view.Edit
-        or view.Back
+    local first = unsent and view.Send or view.Edit:IsShown() and view.Edit or view.Back
     view.Title:ClearAllPoints()
     view.Title:SetPoint("TOPLEFT", view.Icon, "TOPRIGHT", 8, -2)
     view.Title:SetPoint("RIGHT", first, "LEFT", -8, 0)
-    -- Cancel event: off while the calendar deletes it. Restore event: off
-    -- while the calendar makes it again, at the game's limit of events
-    -- created (it would be created again), and for a moderator when only
-    -- the organizer can make it again.
-    local waiting = event.x and ns.Calendar.Restoring(event.key) or not event.x and ns.Calendar.Cancelling(event.key)
-    local atLimit = event.x and organizer and ns.Calendar.AtLimit()
-    local notMine = event.x and ns.Calendar.RestoreBlocked(event)
-    view.Cancel:SetEnabled(not waiting and not atLimit and not notMine)
-    view.Cancel.reason = waiting and L["Syncing the calendar..."] or atLimit and ns.Calendar.LimitText() or notMine or nil
+    -- Delete event: off while the calendar deletes it.
+    local deleting = ns.Calendar.Deleting(event.key)
+    view.Delete:SetEnabled(not deleting)
+    view.Delete.reason = deleting and L["Syncing the calendar..."] or L["Deletes this event, for everyone."]
     -- A locked event takes no answers from members; its creator still
     -- changes their own, as the game's calendar lets them.
     local locked = event.lk and not organizer
-    local open = Events.IsUpcoming(event) and not event.x and not locked
+    local open = Events.IsUpcoming(event) and not locked
     local reason
-    if event.x then
-        reason = L["This event is cancelled."]
-    elseif not Events.IsUpcoming(event) then
+    if not Events.IsUpcoming(event) then
         reason = L["This event is over."]
     elseif locked then
         reason = L["This event is locked: it takes no answers."]

@@ -6,8 +6,8 @@
 -- /gevents probe, build 71037):
 --   - creating and changing an event only inside a click of the player (a
 --     "hardware event"), with the call first in the click. The addon's
---     buttons do it in their own click: Create, Save, Restore event, and
---     Create in calendar for next week's event of a weekly one;
+--     buttons do it in their own click: Create, Save, and Create in
+--     calendar for next week's event of a weekly one;
 --   - deleting an event, opening one, signing up, signing up as tentative,
 --     taking a sign-up back, and giving a sign-up a status (confirmed,
 --     standby, out) at any time, with no click. Each client does these by
@@ -19,14 +19,15 @@
 -- outside the game stay in the addon only.
 --
 -- The calendar first, always: a change made in the addon (a new event, a
--- change, a cancelled or restored event) comes into the addon only once the
--- game's calendar took it; when the game refuses it, nothing changes, and
--- the window says why.
+-- change, an event deleted) comes into the addon only once the game's
+-- calendar took it; when the game refuses it, nothing changes, and the
+-- window says why. A deleted event is gone for everyone, as in the game's
+-- calendar: there is no getting it back.
 --
 -- From the calendar to the addon: the clients of an event's organizer and
 -- of its moderators take into the addon what was changed in the game's
 -- calendar window (title, time, type, description, whether it is locked,
--- statuses, moderators), and cancel it when it is deleted there; the
+-- statuses, moderators), and delete it when it is deleted there; the
 -- organizer's client adds the guild events its character created there;
 -- each member's client takes their own sign-up made there. For each field, the
 -- side that changed since both last agreed wins; when both did, the
@@ -41,10 +42,11 @@
 --   CalendarRead.lua       reading the calendar, the one open event, and what
 --                          this character knows of the calendar;
 --   CalendarSend.lua       what the player's clicks send (create, save,
---                          cancel, restore, delete), and the outbox: what was
---                          sent and has not shown in the calendar yet;
+--                          delete), and the outbox: what was sent and has
+--                          not shown in the calendar yet;
 --   CalendarOrganizer.lua  the organizer's events: changes both ways, events
---                          made or deleted in the calendar window, copies;
+--                          made or deleted in the calendar window, those a
+--                          moderator deleted, copies;
 --   CalendarMember.lua     the player's own answers;
 --   CalendarStatuses.lua   the statuses of the sign-ups of the organizer's
 --                          events.
@@ -76,10 +78,9 @@ end
 
 -- What the addon's window shows of the calendar, and what changes there
 -- with time: whether a new event can be sent, what waits for its button,
--- what is hidden from the player, the last error; which events are to come
--- or of the last week, how long a cancelled one stays listed (by the
--- hour), and the player's level (who may sign up). The window is told
--- (CalendarPending) when it changes.
+-- what is hidden from the player, what is being deleted, the last error;
+-- which events are to come or of the last week, and the player's level
+-- (who may sign up). The window is told (CalendarPending) when it changes.
 local shownSignature
 
 local function WindowSignature()
@@ -90,10 +91,9 @@ local function WindowSignature()
         "v" .. tostring(UnitLevel("player")),
     }
     for key, event in pairs(Events.All()) do
-        parts[#parts + 1] = ("k%s|%s|%s|%s|%s|%s|%s|%s"):format(key, tostring(Calendar.Unsent(event)),
-            tostring(Calendar.HiddenFromMe(event)), tostring(Calendar.Restoring(key)),
-            tostring(Calendar.Cancelling(key)), tostring(Events.IsUpcoming(event, now)),
-            tostring(event.tm + Events.KEEP > now), event.x and math.floor((event.tm + Events.KEEP - now) / 3600) or "")
+        parts[#parts + 1] = ("k%s|%s|%s|%s|%s|%s"):format(key, tostring(Calendar.Unsent(event)),
+            tostring(Calendar.HiddenFromMe(event)), tostring(Calendar.Deleting(key)),
+            tostring(Events.IsUpcoming(event, now)), tostring(event.tm + Events.KEEP > now))
     end
     table.sort(parts)
     return table.concat(parts, ",")
@@ -127,6 +127,7 @@ function Calendar.Tick()
         return
     end
     Read.Scan()
+    Organizer.Purge()
     Send.TakePending()
     Organizer.Link()
     Organizer.Watch()
@@ -161,7 +162,11 @@ function Calendar.TickSoon()
 end
 
 function Calendar.Init()
-    ns.Data.OwnState().pushed = nil  -- what 0.1.0's first builds kept instead of known
+    -- What 0.1.0's first builds kept: instead of known, and of cancelled
+    -- events, which are deleted now.
+    local own = ns.Data.OwnState()
+    own.pushed, own.gone, own.byCalendar, own.cleared = nil, nil, nil, nil
+    ns.db.settings.cleared = nil
     local frame = CreateFrame("Frame")
     ns.RegisterEvents(frame, "CALENDAR_UPDATE_EVENT_LIST", "CALENDAR_NEW_EVENT", "CALENDAR_UPDATE_GUILD_EVENTS",
         "CALENDAR_UPDATE_INVITE_LIST", "CALENDAR_UPDATE_EVENT", "CALENDAR_UPDATE_ERROR",

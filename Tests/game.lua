@@ -237,6 +237,11 @@ return function(H)
             local month, year = Month(offset)
             return DayEvents(client, year, month, day)[index]
         end
+        -- Its creator, or one of its moderators.
+        local function MayRemove(event)
+            local mine = event.invites[client.guid]
+            return event.creator == client.guid or mine ~= nil and mine.modStatus == "MODERATOR"
+        end
         local function MyStatus(event)
             local invite = event.invites[client.guid]
             return invite and invite.status or STATUS.NotSignedup
@@ -552,10 +557,13 @@ return function(H)
                 selected = event and event.id
             end,
             -- Only the open event (WoW Forever said false for one not
-            -- open; its window offers Delete on the event selected).
+            -- open; its window offers Delete on the event selected), by
+            -- its creator or a moderator (seen in game). world.refuseRemove:
+            -- the game says no all the same.
             ContextMenuEventCanRemove = function(offset, day, index)
                 local event = EventAt(offset, day, index)
-                return event ~= nil and event.creator == client.guid and open ~= nil and open.id == event.id
+                return event ~= nil and MayRemove(event) and open ~= nil and open.id == event.id
+                    and not world.refuseRemove
             end,
             -- world.restrictRemove: refused outside a click, as the game
             -- did once (the addon then waits for a click to delete).
@@ -572,7 +580,7 @@ return function(H)
                     world:Schedule(0.2, function()
                         world:FireEvent(client, "CALENDAR_UPDATE_ERROR", "CALENDAR_ERROR_PERMISSIONS")
                     end, client)
-                elseif event and event.creator == client.guid then
+                elseif event and MayRemove(event) then
                     event.deleted = true
                     Broadcast(world, "CALENDAR_UPDATE_GUILD_EVENTS", "CALENDAR_UPDATE_EVENT_LIST")
                 end

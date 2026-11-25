@@ -3,7 +3,7 @@
 --
 --   - Creating an event: whoever the game lets add guild events to its
 --     calendar (C_Calendar.CanAddEvent), as their rank allows.
---   - Changing or cancelling an event, giving its sign-ups a status
+--   - Changing or deleting an event, giving its sign-ups a status
 --     (confirmed, standby, out), and naming or taking back its moderators:
 --     its organizer and its moderators (Events.IsModerator), as in the
 --     game's calendar. The game itself still has the last word on each
@@ -32,7 +32,7 @@ function Rights.IsGM(guid)
     return entry ~= nil and entry.ri == 0
 end
 
--- Whether guid may change or cancel the event, give its sign-ups a status
+-- Whether guid may change or delete the event, give its sign-ups a status
 -- and name its moderators: its organizer or one of its moderators.
 function Rights.MayManage(guid, event)
     if not guid or not event then

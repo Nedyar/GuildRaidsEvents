@@ -191,10 +191,12 @@ officer.ns.EventForm.Open(key)
 world:RunFor(5)
 H.check(not officerForm:IsShown() or not officerForm.Save:IsEnabled(), "no longer a moderator: their Save is off")
 officerForm:Hide()
-member.ns.Calendar.Cancel(key)
+world.refuseRemove = true
+member.ns.Calendar.Delete(key)
 world:RunFor(10)
-H.check(not ns.Events.Get(key).x and not member.ns.Calendar.Cancelling(key) and not InCalendar().deleted,
-    "Cancel event, when the game does not let a moderator delete it: nothing changes")
+world.refuseRemove = nil
+H.check(ns.Events.Get(key) ~= nil and member.ns.Events.Get(key) ~= nil and not member.ns.Calendar.Deleting(key)
+    and not InCalendar().deleted, "Delete event, when the game does not let a moderator delete it: nothing changes")
 H.eq(member.ns.Calendar.lastError, "The game's calendar does not let you delete this event.", "and the window says why")
 for _, guid in ipairs({ second.guid, member.guid }) do
     ns.Events.SetModerator(key, guid, false)
@@ -319,115 +321,96 @@ world:WindowStatus(calendarID, organizer.guid, 3)
 world:RunFor(150)
 Errors("the organizer's own line")
 
-H.section("Calendar: cancelling deletes it with the same click")
-ns.EventForm.Open(key)
-world:RunFor(5)
-form:Hide()
-organizer.inClick = true
-ns.Calendar.Cancel(key)
-organizer.inClick = false
-H.check(InCalendar().deleted, "the event was open (the form had just changed it): deleted inside the click")
-H.check(not ns.Events.Get(key).x and ns.Calendar.Cancelling(key), "the addon waits for the calendar")
-world:RunFor(1)
-H.check(ns.Events.Get(key).x, "the calendar no longer has it: cancelled in the addon, kept there")
-world:RunFor(30)
-H.eq(#ns.Calendar.Pending(), 0, "nothing waits")
-local creates = Count(organizer.calendarCalls, "AddEvent")
-world:RunFor(10)
-H.eq(Count(organizer.calendarCalls, "AddEvent"), creates, "and nothing creates it again")
-organizer.inClick = true
-H.check(ns.Calendar.Restore(key), "restoring it")
-organizer.inClick = false
-world:RunFor(30)
-H.check(not ns.Events.Get(key).x and #CalendarEvents() == 1 and ns.Events.Get(key).ci == CalendarEvents()[1].id,
-    "creates it again in the same click, linked")
-calendarID = ns.Events.Get(key).ci
-Errors("cancelling")
-
-H.section("Calendar: restoring keeps everyone's states")
-local mineBefore = ns.Events.Mine(ns.Events.Get(key))
-H.check(ns.Events.SetStatus(key, organizer.guid, ns.Events.STANDBY), "the organizer on standby")
-H.check(member.ns.Events.Answer(key, member.ns.Events.SIGNED, member.ns.Events.TANK), "a member signed up")
-world:RunFor(30)
--- From tentative to signed up, the game hides the event from the member
--- for a while (world:ShowHidden() brings it back).
-world:ShowHidden()
-world:RunFor(320)
-H.eq(InCalendar().invites[organizer.guid].status, 5, "the organizer on standby in the calendar")
-H.check(InCalendar().invites[member.guid] ~= nil and InCalendar().invites[member.guid].status ~= 8, "the member signed up there")
-organizer.inClick = true
-ns.Calendar.Cancel(key)
-organizer.inClick = false
-world:RunFor(10)
-organizer.inClick = true
-ns.Calendar.Restore(key)
-organizer.inClick = false
-world:RunFor(60)
-calendarID = ns.Events.Get(key).ci
-H.eq(InCalendar().invites[organizer.guid].status, 5, "made again, the calendar takes the organizer's standby from the addon")
-H.eq(ns.Events.Mine(ns.Events.Get(key)).status, ns.Events.STANDBY, "and the addon keeps it")
-H.check(InCalendar().invites[member.guid] ~= nil and member.ns.Events.Mine(member.ns.Events.Get(key)).st == 1,
-    "the member's sign-up goes to it again, and stays in the addon")
-ns.Events.SetStatus(key, organizer.guid, mineBefore.status)
-world:RunFor(30)
-Errors("restoring")
-
-H.section("Calendar: deleted in the game's calendar window")
--- Missing for a moment (the calendar's data incomplete), then back.
-world.calendar.events[calendarID].deleted = true
-world:RunFor(12)
-world.calendar.events[calendarID].deleted = nil
-world:RunFor(30)
-H.check(not ns.Events.Get(key).x and not InCalendar().deleted, "missing for a moment: restored when back, never deleted")
-local OpenCalendar = organizer.env.C_Calendar.OpenCalendar
-organizer.env.C_Calendar.OpenCalendar = function() end
-world:WindowDelete(calendarID)
-world:RunFor(1)
-organizer.env.C_Calendar.OpenCalendar = OpenCalendar
-H.check(ns.Events.Get(key).x, "deleted there: cancelled in the addon at once")
-creates = Count(organizer.calendarCalls, "AddEvent")
-world:RunFor(60)
-H.eq(Count(organizer.calendarCalls, "AddEvent"), creates, "nothing creates it again")
-H.eq(#CalendarEvents(), 0, "no copies")
-Errors("deleted in the calendar window")
-
 H.section("Calendar: copies of an event are deleted")
-local restored = ns.Events.Get(key)
-organizer.inClick = true
-ns.Calendar.Restore(key)
-organizer.inClick = false
-world:RunFor(30)
-local original = ns.Events.Get(key).ci
-local copyAt = restored.tm
-world:WindowCreate(organizer, { title = restored.ti, at = copyAt, type = 0 })
-world:WindowCreate(organizer, { title = restored.ti, at = copyAt, type = 0 })
+local original = ns.Events.Get(key)
+world:WindowCreate(organizer, { title = original.ti, at = original.tm, type = original.ty })
+world:WindowCreate(organizer, { title = original.ti, at = original.tm, type = original.ty })
 world:RunFor(60)
-H.check(#CalendarEvents() == 1 and CalendarEvents()[1].id == original, "the copies go, the event stays")
+H.check(#CalendarEvents() == 1 and CalendarEvents()[1].id == original.ci, "the copies go, the event stays")
 H.eq(#ns.Events.List("upcoming"), 1, "and none comes into the addon")
 Errors("copies")
 
-H.section("Calendar: an event made in the game's calendar window")
-local made = world:WindowCreate(organizer, { title = "Zul'Gurub", at = ns.Events.Now() + 3 * 86400 - (ns.Events.Now() % 60),
-    type = 0 })
+H.section("Calendar: deleted in the game's calendar window")
+-- Missing from a look at the calendar, and no new data of it says so (the
+-- calendar's data incomplete for a moment): kept.
+local OpenCalendar = organizer.env.C_Calendar.OpenCalendar
+organizer.env.C_Calendar.OpenCalendar = function() end
+world.calendar.events[calendarID].deleted = true
+world:RunFor(35)
+world.calendar.events[calendarID].deleted = nil
+world:RunFor(12)
+organizer.env.C_Calendar.OpenCalendar = OpenCalendar
 world:RunFor(20)
-local adopted
-for _, one in ipairs(ns.Events.List("upcoming")) do
-    if one.ci == made then
-        adopted = one
+H.check(ns.Events.Get(key) ~= nil and not InCalendar().deleted, "missing for a moment, no new data saying so: kept")
+ns.EventForm.Open(key)
+world:RunFor(5)
+H.check(form:IsShown(), "the organizer changing it in the form")
+world:WindowDelete(calendarID)
+world:RunFor(1)
+H.eq(ns.Events.Get(key), nil, "deleted there: deleted from the addon at once, the calendar's data asked for again")
+H.check(not form:IsShown(), "the form changing it closes")
+world:RunFor(30)
+H.eq(member.ns.Events.Get(key), nil, "for everyone")
+local creates = Count(organizer.calendarCalls, "AddEvent")
+world:RunFor(60)
+H.eq(Count(organizer.calendarCalls, "AddEvent"), creates, "nothing creates it again")
+H.eq(#CalendarEvents(), 0, "no copies")
+H.eq(#ns.Calendar.Pending(), 0, "nothing waits")
+Errors("deleted in the calendar window")
+
+H.section("Calendar: an event made in the game's calendar window")
+local function MadeThere(title, days, type)
+    local id = world:WindowCreate(organizer, { title = title, at = ns.Events.Now() + days * 86400 - (ns.Events.Now() % 60),
+        type = type })
+    world:RunFor(20)
+    for _, one in ipairs(ns.Events.List("upcoming")) do
+        if one.ci == id then
+            return one, id
+        end
     end
 end
+local adopted, made = MadeThere("Zul'Gurub", 3, 0)
 H.check(adopted ~= nil and adopted.ti == "Zul'Gurub" and adopted.ty == 0 and adopted.owner == organizer.guid,
     "its creator's client brings it into the addon")
 world:RunFor(30)
 H.check(member.ns.Events.Get(adopted.key) ~= nil, "for everyone")
-H.eq(#CalendarEvents(), 2, "and makes no copy")
-local adoptedID = adopted.ci
-H.check(ns.Calendar.Cancel(adopted.key) and ns.Calendar.Cancelling(adopted.key) and not ns.Events.Get(adopted.key).x,
-    "cancelling an event not open: the calendar first, the addon waits for it")
-world:RunFor(5)
-H.check(world.calendar.events[adoptedID].deleted and ns.Events.Get(adopted.key).x and not ns.Calendar.Cancelling(adopted.key),
-    "opened, deleted a moment later, then cancelled in the addon")
+H.check(#CalendarEvents() == 1 and CalendarEvents()[1].id == made, "and makes no copy")
 Errors("made in the calendar window")
+
+H.section("Calendar: Delete event deletes it, for everyone, with no getting it back")
+local doomed, doomedID = MadeThere("Doomed", 4, 1)
+world:RunFor(30)
+H.check(doomed ~= nil and member.ns.Events.Get(doomed.key) ~= nil, "an event of the organizer's, everyone's")
+ns.EventForm.Open(doomed.key)
+world:RunFor(5)
+form:Hide()
+organizer.inClick = true
+ns.Calendar.Delete(doomed.key)
+organizer.inClick = false
+H.check(world.calendar.events[doomedID].deleted, "the event was open (the form had just opened it): deleted inside the click")
+H.check(ns.Events.Get(doomed.key) ~= nil and ns.Calendar.Deleting(doomed.key), "the addon waits for the calendar")
+world:RunFor(1)
+H.check(ns.Events.Get(doomed.key) == nil and not ns.Calendar.Deleting(doomed.key),
+    "the calendar no longer has it: deleted from the addon")
+world:RunFor(30)
+H.eq(member.ns.Events.Get(doomed.key), nil, "for everyone")
+creates = Count(organizer.calendarCalls, "AddEvent")
+world:RunFor(10)
+H.eq(Count(organizer.calendarCalls, "AddEvent"), creates, "nothing creates it again")
+H.eq(#ns.Calendar.Pending(), 0, "nothing waits")
+local closed, closedID = MadeThere("Doomed too", 5, 1)
+H.check(ns.Calendar.Delete(closed.key) and ns.Calendar.Deleting(closed.key) and ns.Events.Get(closed.key) ~= nil,
+    "deleting an event not open: the calendar first, the addon waits for it")
+world:RunFor(5)
+H.check(world.calendar.events[closedID].deleted and ns.Events.Get(closed.key) == nil and not ns.Calendar.Deleting(closed.key),
+    "opened, deleted a moment later, then deleted from the addon")
+world:RunFor(30)
+local back = false
+for _, one in ipairs(member.ns.Events.List("upcoming")) do
+    back = back or one.key == doomed.key or one.key == closed.key or one.ti == "Doomed" or one.ti == "Doomed too"
+end
+H.check(not back, "and never taken back into the addon")
+Errors("Delete event")
 
 H.section("Calendar: a weekly event's next one")
 local weekly = ns.Events.Create({ ty = 1, ti = "Dungeon night", tm = ns.Events.Now() - 4 * 3600, ml = 0, wk = true })
@@ -554,7 +537,7 @@ third.env.CalendarFrame:Hide()
 world:RunFor(30)
 Errors("a member's answer in the window")
 
-H.section("Calendar: clearing one's cancelled event deletes it")
+H.section("Calendar: a moderator's deletion reaching the organizer before the calendar's")
 ns.EventForm.Open(nil)
 form.TitleBox:SetText("To clear")
 H.Click(form.Save)
@@ -567,18 +550,26 @@ for _, one in ipairs(ns.Events.List("upcoming")) do
 end
 H.check(toClear ~= nil and toClear.ci ~= 0, "an event of the organizer's, in the calendar")
 local clearKey, clearID = toClear.key, toClear.ci
-H.check(ns.Events.Cancel(clearKey), "cancelled")
-ns.UI.Clear({ ns.Events.Get(clearKey) })
-H.eq(ns.Events.Get(clearKey), nil, "cleared from their list before the calendar deleted it: gone from the addon")
+H.check(member.ns.Events.Answer(clearKey, 1, 3), "a member signs up")
+world:RunFor(60)
+H.check(ns.Events.SetModerator(clearKey, member.guid, true), "and is named a moderator")
 world:RunFor(30)
-H.check(world.calendar.events[clearID].deleted, "and deleted from the calendar too")
-H.eq(member.ns.Events.Get(clearKey), nil, "for everyone")
+-- Their client's deletion, as it travels when the calendar did not have it.
+H.check(member.ns.Events.Delete(clearKey) and member.ns.Events.Get(clearKey) == nil, "the moderator deletes it")
+world:RunFor(30)
+H.eq(ns.Events.Get(clearKey), nil, "the organizer has it deleted too")
+local inRecord = false
+for _, base in ipairs(ns.Data.GetOwnRecord(false).ev or {}) do
+    inRecord = inRecord or organizer.guid .. "/" .. base.id == clearKey
+end
+H.check(not inRecord, "and their client takes it out of their record")
+H.check(world.calendar.events[clearID].deleted, "its calendar event, still there, goes too")
 local takenBack = false
 for _, one in ipairs(ns.Events.List("upcoming")) do
     takenBack = takenBack or one.ci == clearID or one.ti == "To clear"
 end
-H.check(not takenBack, "and never taken back into the addon")
-Errors("clearing one's own")
+H.check(not takenBack, "and is never taken back into the addon")
+Errors("a moderator's deletion first")
 
 H.section("Calendar: the game's own limit of events created")
 local function MadeInCalendar()
@@ -614,18 +605,11 @@ H.eq(form.Error:GetText(), LIMIT_TEXT, "and the form says it")
 H.eq(ns.Calendar.lastError, LIMIT_TEXT, "so does the tab, with the game's count")
 H.check(ns.Calendar.AtLimit(), "the addon knows the player is at the limit")
 form:Hide()
-local cancelledOwn = ns.Events.Get(adopted.key)
-H.check(cancelledOwn ~= nil and cancelledOwn.x, "a cancelled event of the organizer's")
-organizer.inClick = true
-H.check(ns.Calendar.Restore(adopted.key), "restoring it sends it to the calendar first")
-organizer.inClick = false
-H.check(ns.Events.Get(adopted.key).x and ns.Calendar.Restoring(adopted.key), "still cancelled while the calendar answers")
-world:RunFor(5)
-H.check(ns.Events.Get(adopted.key).x and not ns.Calendar.Restoring(adopted.key), "refused by the game: it stays cancelled")
 organizer.eventLimit = nil
 world.calendar.events[lockID].deleted = true
 world:RunFor(20)
 H.check(not ns.Calendar.AtLimit(), "one of theirs gone from the calendar: no longer at the limit")
+H.eq(ns.Events.Get(nextKey), nil, "(and gone from the addon)")
 H.check(ns.Calendar.CreatedCount() > 0, "and /gevents status counts the events the player created in the calendar")
 ns.EventForm.Open(nil)
 H.check(form.Save:IsEnabled(), "Create is on again")
@@ -635,13 +619,6 @@ world:RunFor(5)
 local under = Titled("Under the limit")
 H.check(under ~= nil and under.ci ~= 0 and world.calendar.events[under.ci].title == "Under the limit" and not form:IsShown(),
     "a new event comes into the addon once the calendar has it, linked, and the form closes")
-organizer.inClick = true
-H.check(ns.Calendar.Restore(adopted.key), "restoring under the limit")
-organizer.inClick = false
-world:RunFor(5)
-local restoredNow = ns.Events.Get(adopted.key)
-H.check(not restoredNow.x and restoredNow.ci ~= 0 and not world.calendar.events[restoredNow.ci].deleted,
-    "restored in the addon once the calendar has it again, linked")
 local weeklyKey = ns.Events.Create({ ty = 0, ti = "Weekly over", tm = ns.Events.Now() + 2 * 86400, ml = 0, wk = true })
 local limitThen = MadeInCalendar()
 organizer.eventLimit = limitThen
@@ -694,27 +671,22 @@ local toldBefore = told
 local toldKey = ns.Events.Create({ ty = 4, ti = "Told", tm = ns.Events.Now() + 5 * 86400, ml = 0 })
 world:RunFor(15)
 H.check(told > toldBefore and ns.Calendar.Unsent(ns.Events.Get(toldKey)), "an event waiting for its button is told")
-ns.Events.Cancel(toldKey)
-ns.Calendar.Delete(toldKey)
+told = 0
+H.check(ns.Calendar.Delete(toldKey) and ns.Events.Get(toldKey) == nil, "not in the calendar yet: deleted from the addon at once")
 world:RunFor(10)
+H.check(told > 0, "and the window is told")
 Errors("the window told")
 
-H.section("Calendar: the game refusing another call leaves a new or restored event alone")
+H.section("Calendar: the game refusing another call leaves a deletion or a new event alone")
 kept = ns.Events.Get(adopted.key)
 ns.EventForm.Open(kept.key)
 world:RunFor(5)
 ns.EventForm.Frame():Hide()
-ns.Calendar.Cancel(kept.key)
-world:RunFor(30)
-H.check(ns.Events.Get(kept.key).x and world.calendar.events[kept.ci].deleted, "cancelled, its calendar event deleted")
-organizer.inClick = true
-H.check(ns.Calendar.Restore(kept.key), "restoring it")
-organizer.inClick = false
+ns.Calendar.Delete(kept.key)
 world:FireEvent(organizer, "ADDON_ACTION_BLOCKED", "GuildRaidsEvents", "EventSetInviteStatus()")
-world:RunFor(60)
-local back = ns.Events.Get(kept.key)
-H.check(not back.x and back.ci ~= 0 and not world.calendar.events[back.ci].deleted,
-    "another call refused meanwhile: it is restored all the same, linked, and its calendar event stays")
+world:RunFor(30)
+H.check(ns.Events.Get(kept.key) == nil and world.calendar.events[keptID].deleted,
+    "another call refused meanwhile: the event is deleted all the same, from both")
 ns.EventForm.Open(nil)
 form.TitleBox:SetText("Onyxia (resist gear)")
 form.Limit:SetChecked(true)
@@ -785,15 +757,38 @@ H.check(AwayInvite(member.guid) ~= nil and AwayInvite(member.guid).modStatus ~= 
     "and is not one again, in the addon or in the calendar, as in the game")
 world.errors = {}
 
-H.section("Calendar: only the organizer restores an event, made again in the calendar")
+H.section("Calendar: a moderator deletes an event, for everyone")
 H.check(ns.Events.SetModerator(awayKey, second.guid, true), "another moderator")
 world:RunFor(30)
-H.check(ns.Calendar.Cancel(awayKey), "the organizer cancels the event")
+H.check(third.ns.Events.Answer(awayKey, 1, 3), "a third member signs up")
+world:RunFor(60)
+H.check(ns.Events.SetModerator(awayKey, third.guid, true), "and is named a moderator too")
+world:RunFor(30)
+H.check(third.ns.Rights.MayIManage(third.ns.Events.Get(awayKey)), "they manage it")
+-- Gone from their own calendar for a while, still in the guild's list.
+world.calendar.hidden[third.guid] = { [awayID] = true }
+world:FireEvent(third, "CALENDAR_UPDATE_EVENT_LIST")
+world:RunFor(30)
+H.check(ns.Events.Get(awayKey) ~= nil and third.ns.Events.Get(awayKey) ~= nil,
+    "an event gone from a moderator's own calendar for a while, still the guild's: not deleted")
+world.calendar.hidden[third.guid] = nil
+world:FireEvent(third, "CALENDAR_UPDATE_EVENT_LIST")
 world:RunFor(10)
-H.check(ns.Events.Get(awayKey).x and world.calendar.events[awayID].deleted, "gone from the calendar, cancelled")
-world:RunFor(20)
-H.check(not second.ns.Calendar.Restore(awayKey) and second.ns.Events.Get(awayKey).x,
-    "a moderator cannot restore it")
-H.eq(second.ns.Calendar.lastError, "Only its organizer can restore it: it is made again in the game's calendar.",
-    "and is told why")
+world:WindowAnswer(third, awayID, nil)
+world:RunFor(60)
+H.check(ns.Events.Get(awayKey) ~= nil and not world.calendar.events[awayID].deleted,
+    "they take their sign-up back in the game's window: gone from their calendar for a while, the event is not deleted")
+H.check(not ns.Events.IsModerator(ns.Events.Get(awayKey), third.guid), "and they are a moderator no more")
+H.check(second.ns.Calendar.Delete(awayKey), "the other moderator deletes the event")
+world:RunFor(10)
+H.check(world.calendar.events[awayID].deleted and second.ns.Events.Get(awayKey) == nil,
+    "the calendar first, then gone from their addon")
+world:RunFor(30)
+H.check(ns.Events.Get(awayKey) == nil and member.ns.Events.Get(awayKey) == nil and third.ns.Events.Get(awayKey) == nil,
+    "for everyone")
+local stillOwned = false
+for _, base in ipairs(ns.Data.GetOwnRecord(false).ev or {}) do
+    stillOwned = stillOwned or organizer.guid .. "/" .. base.id == awayKey
+end
+H.check(not stillOwned, "and the organizer's client takes it out of their record")
 world.errors = {}

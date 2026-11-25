@@ -5,6 +5,11 @@
 --   - An event is its organizer's (in their record), as its organizer or
 --     a moderator last left it: a moderator's change travels in their own
 --     record (pe), and the newest of all counts (Rights.lua says who may).
+--   - Deleting an event deletes it for everyone, as the game's calendar
+--     does: its organizer takes it out of their record; a moderator's
+--     deletion travels in their own (pe, with x) and counts whatever comes
+--     after it, and the organizer's client then takes it out of theirs
+--     (Events.Purge). There is no getting a deleted event back.
 --   - Its moderators, as in the game's calendar: the organizer names them,
 --     and a moderator may name or take back others (never the organizer).
 --     Each naming travels in its maker's record (mo); every client replays
@@ -130,10 +135,11 @@ end
 
 -- The guild's events ------------------------------------------------------------------------
 
-local cache  -- { [key] = event }, until the data or the roster change
+local cache    -- { [key] = event }, until the data or the roster change
+local deleted  -- { [key] = event }: those deleted, not in the cache
 
 function Events.Invalidate()
-    cache = nil
+    cache, deleted = nil, nil
 end
 
 -- An event's fields (Pack.lua says what each is).
@@ -167,11 +173,12 @@ local function Moderators(event, guild)
     return moderators
 end
 
+-- The events, and those deleted: { [key] = event } each.
 local function Build()
-    local events = {}
+    local events, gone = {}, {}
     local guild = ns.Data.CurrentGuild(false)
     if not guild then
-        return events
+        return events, gone
     end
     local roster = ns.Roster.members
     for guid, record in pairs(guild.members) do
@@ -190,25 +197,44 @@ local function Build()
     for _, event in pairs(events) do
         event.md = Moderators(event, guild)
     end
+    local removed = {}
     for guid, record in pairs(guild.members) do
         for key, patch in pairs(record.pe or {}) do
             local event = events[key]
-            if event and guid ~= event.owner and patch.at > event.at and ns.Rights.MayManage(guid, event) then
-                for _, field in ipairs(FIELDS) do
-                    event[field] = patch[field]
+            if event and guid ~= event.owner and ns.Rights.MayManage(guid, event) then
+                if patch.x then
+                    removed[key] = true
+                elseif patch.at > event.at then
+                    for _, field in ipairs(FIELDS) do
+                        event[field] = patch[field]
+                    end
+                    event.by = guid
                 end
-                event.by = guid
             end
         end
     end
-    return events
+    for key, event in pairs(events) do
+        -- x in an organizer's own event: 0.1.0's first builds' cancelled
+        -- events, deleted now.
+        if removed[key] or event.x then
+            events[key], gone[key] = nil, event
+        end
+    end
+    return events, gone
 end
 
 function Events.All()
     if not cache then
-        cache = Build()
+        cache, deleted = Build()
     end
     return cache
+end
+
+-- The events deleted (by a moderator) that are still in their organizer's
+-- record: { [key] = event }.
+function Events.Deleted()
+    Events.All()
+    return deleted
 end
 
 function Events.Get(key)
@@ -443,8 +469,9 @@ local function NextChange(at)
 end
 
 -- The fields an event is made of, from the form: { ty, ti, tm, de, sl, ml,
--- ii, wk, ac, lk }, checked. nil when they do not pass.
-local function Fields(fields, at, cancelled)
+-- ii, wk, ac, lk }, checked (x: a moderator's deletion). nil when they do
+-- not pass.
+local function Fields(fields, at, deleting)
     local copy = {}
     for _, field in ipairs(FIELDS) do
         copy[field] = fields[field]
@@ -457,7 +484,7 @@ local function Fields(fields, at, cancelled)
     if type(copy.tm) == "number" then
         copy.tm = copy.tm - copy.tm % 60
     end
-    copy.at, copy.x = at, cancelled or nil
+    copy.at, copy.x = at, deleting or nil
     return ns.Data.CleanFields(copy)
 end
 
@@ -531,20 +558,16 @@ local function OwnBase(record, key)
     end
 end
 
--- Changes an event the player may manage: fields as for Events.Create.
--- Its organizer changes it in their record, a moderator in their own (pe).
--- cancelled: true or false to cancel it or bring it back, nil to leave it.
--- Returns whether it could.
-function Events.Change(key, fields, cancelled)
+-- Changes an event the player may manage: fields as for Events.Create
+-- (deleting: a moderator deletes it). Its organizer changes it in their
+-- record, a moderator in their own (pe). Returns whether it could.
+local function Change(key, fields, deleting)
     local event = Events.Get(key)
     local record = Own()
     if not event or not record or not ns.Rights.MayIManage(event) then
         return false
     end
-    if cancelled == nil then
-        cancelled = event.x
-    end
-    local changed = Fields(fields, NextChange(event.at), cancelled)
+    local changed = Fields(fields, NextChange(event.at), deleting)
     if not changed then
         return false
     end
@@ -559,7 +582,7 @@ function Events.Change(key, fields, cancelled)
             base[field] = changed[field]
         end
         -- Made weekly: next week's at once, as for a new weekly event.
-        if base.wk and not wasWeekly and not base.nx and not base.x then
+        if base.wk and not wasWeekly and not base.nx then
             MakeNext(record, base, ns.Now())
         end
     else
@@ -573,22 +596,13 @@ function Events.Change(key, fields, cancelled)
     return true
 end
 
--- Cancels an event (it stays listed, marked, until it is past), or brings
--- it back.
-function Events.Cancel(key, cancelled)
-    local event = Events.Get(key)
-    return event ~= nil and Events.Change(key, event, cancelled ~= false)
+function Events.Change(key, fields)
+    return Change(key, fields)
 end
 
--- Deletes one of the player's own cancelled events, for everyone: it goes
--- from their record, with their answer and the statuses they gave in it.
--- Returns whether it did.
-function Events.Delete(key)
-    local record = Own()
-    local event = Events.Get(key)
-    if not record or not event or event.owner ~= ns.playerGUID or not event.x then
-        return false
-    end
+-- Takes one of the player's own events out of their record, with their
+-- answer, and the statuses and moderators they gave in it. Whether it did.
+local function RemoveOwn(record, key)
     local _, index = OwnBase(record, key)
     if not index then
         return false
@@ -604,6 +618,27 @@ function Events.Delete(key)
     end
     Touch(record, "events")
     return true
+end
+
+-- Deletes an event the player may manage, for everyone. Returns whether it
+-- did.
+function Events.Delete(key)
+    local event = Events.Get(key)
+    local record = Own()
+    if not event or not record then
+        return false
+    elseif event.owner == ns.playerGUID then
+        return RemoveOwn(record, key)
+    end
+    return Change(key, event, true)
+end
+
+-- One of the player's own events a moderator deleted (Events.Deleted): out
+-- of their record too. Whether it was.
+function Events.Purge(key)
+    local record = Own()
+    local event = Events.Deleted()[key]
+    return record ~= nil and event ~= nil and event.owner == ns.playerGUID and RemoveOwn(record, key)
 end
 
 -- The player answers an event: st Events.SIGNED, TENTATIVE or DECLINED,
@@ -748,9 +783,11 @@ function Events.Tidy()
         record.ev = nil
     end
     Events.Invalidate()
-    local all = Events.All()
+    local all, deletedEvents = Events.All(), Events.Deleted()
+    -- A deleted event's are kept while it is in its organizer's record: a
+    -- moderator's deletion (pe) counts only with their answer and naming.
     local function Gone(key, at)
-        local event = all[key]
+        local event = all[key] or deletedEvents[key]
         if event then
             return event.tm + Events.KEEP < now
         end

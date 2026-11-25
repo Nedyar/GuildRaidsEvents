@@ -218,7 +218,7 @@ end
 
 -- An event's title, as the game's calendar shows a locked one.
 function UI.EventTitle(event)
-    return event.lk and not event.x and UI.LockedTitle(event.ti) or event.ti
+    return event.lk and UI.LockedTitle(event.ti) or event.ti
 end
 
 -- The state of a sign-up (or of none) by its name, in its colour.
@@ -268,9 +268,9 @@ function UI.DateText(naive)
     return ("%s, %s"):format(UI.DayText(naive), UI.HourText(naive))
 end
 
--- A button of the addon's window. Those that change the game's calendar
--- (Create, Save, Cancel event, Restore event, Create in calendar) call it
--- first thing in their click, the only time the game takes it.
+-- A button of the addon's window. Those that create or change an event in
+-- the game's calendar (Create, Save, Create in calendar) call it first
+-- thing in their click, the only time the game takes it.
 function UI.Button(parent, text, onClick)
     local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
     button:SetText(text)
@@ -323,7 +323,7 @@ end
 -- An upcoming event the player may go to, has not answered and has not
 -- seen in the list.
 function UI.IsUnseen(event)
-    if not ns.playerGUID or not ns.db or event.x or not UI.MeetsLevel(event) or Seen()[event.key] then
+    if not ns.playerGUID or not ns.db or not UI.MeetsLevel(event) or Seen()[event.key] then
         return false
     end
     return Events.Mine(event) == nil
@@ -346,54 +346,6 @@ function UI.TidySeen()
     for key in pairs(seen) do
         if not Events.Get(key) then
             seen[key] = nil
-        end
-    end
-end
-
--- Cancelled events the player cleared from their list --------------------------------------
-
--- OwnState().cleared = { [key] = the event's start }: this character's own
--- (never shared, nor seen by the account's other characters), and only in
--- its list (the others and the API still have them). Forgotten once the
--- event is long past.
-local function Cleared()
-    -- 0.1.0's first builds kept one for the whole account: it hid an
-    -- organizer's own event when another of their characters cleared it.
-    ns.db.settings.cleared = nil
-    local own = ns.Data.OwnState()
-    own.cleared = own.cleared or {}
-    return own.cleared
-end
-
-function UI.IsCleared(event)
-    return event.x == true and ns.db ~= nil and ns.playerGUID ~= nil and Cleared()[event.key] ~= nil
-end
-
--- How long a cancelled event stays in the list by itself (until Events.KEEP
--- after it starts), in the game's words: "6 Days", "5 Hours".
-function UI.LeavesIn(event)
-    local seconds = math.max(event.tm + Events.KEEP - Events.Now(), 60)
-    local text = SecondsToTime(seconds, true, true, 1, true)
-    if text == "" then
-        text = SecondsToTime(seconds, true, true, 2, true)
-    end
-    return text
-end
-
--- Clears the cancelled ones of events from the player's list: the player's
--- own are deleted, for everyone; the others' leave only this list.
-function UI.Clear(events)
-    local cleared, now = Cleared(), Events.Now()
-    for key, start in pairs(cleared) do
-        if start + Events.KEEP + 86400 < now then
-            cleared[key] = nil
-        end
-    end
-    for _, event in ipairs(events) do
-        if event.x and event.owner == ns.playerGUID then
-            ns.Calendar.Delete(event.key)
-        elseif event.x then
-            cleared[event.key] = event.tm
         end
     end
 end

@@ -60,7 +60,7 @@ function Reminders.Check()
     end
     for _, event in ipairs(Events.List("upcoming")) do
         local left = event.tm - now
-        if not event.x and left > 0 and left <= minutes * 60 and state.reminded[event.key] ~= event.tm then
+        if left > 0 and left <= minutes * 60 and state.reminded[event.key] ~= event.tm then
             if ns.States.IsReminded(ns.States.Of(Events.Mine(event))) then
                 state.reminded[event.key] = event.tm
                 Show(event, left)

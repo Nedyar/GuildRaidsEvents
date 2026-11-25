@@ -175,7 +175,7 @@ local function EventToMirror(now)
     local again = not Read.WindowShown()
     for key, event in pairs(Events.All()) do
         local entry = Read.Find(event.ci)
-        if entry and ns.Rights.MayIManage(event) and not event.x and event.tm > Events.Now() then
+        if entry and ns.Rights.MayIManage(event) and event.tm > Events.Now() then
             local last = mirrored[key]
             local signature = StatusSignature(event)
             if not last or last.signature ~= signature or (again and now - last.at > MIRROR_EVERY) then
@@ -256,7 +256,7 @@ function Statuses.ReadOpen()
     end
     local start, title = Read.StartOf(info.time), Plain(info.title)
     for key, event in pairs(Events.All()) do
-        if ns.Rights.MayIManage(event) and event.ci ~= 0 and not event.x and event.tm == start and event.ti == title then
+        if ns.Rights.MayIManage(event) and event.ci ~= 0 and event.tm == start and event.ti == title then
             Organizer.ReconcileOpen(key)
             StatusChanges(key, Events.Get(key) or event)
             return
