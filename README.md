@@ -1,3 +1,5 @@
+<p align="center"><img src=".github/logo.png" alt="Guild Raids & Events logo" width="160"></p>
+
 # Guild Raids & Events
 
 An addon for WoW Forever (the `_forever_` client, 1.60.x) to organize your
