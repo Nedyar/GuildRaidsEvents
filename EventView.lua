@@ -22,6 +22,9 @@ local NAME_HEIGHT = 16
 local MAX_NAMES = 7     -- names shown in a column; the rest as "+N more"
 local NOTE_LETTERS = ns.Pack.LIMITS.noteLetters
 local COLUMN_ORDER = { confirmed = 1, signed = 2, tentative = 3, standby = 4 }
+-- The game calendar's marks of an event's creator and its moderators.
+local LEADER_ICON = "|TInterface\\GroupFrame\\UI-Group-LeaderIcon:12:12|t "
+local MODERATOR_ICON = "|TInterface\\GroupFrame\\UI-Group-AssistantIcon:12:12|t "
 
 local view       -- the frame
 local shownKey   -- the event shown
@@ -116,6 +119,16 @@ local function StatusMenu(owner, signUp)
                 Events.SetStatus(event.key, signUp.guid, status)
             end)
         end
+        -- Moderators, as the game's calendar names them: anyone in its list
+        -- (not a sign-up made outside the game), never the organizer.
+        if signUp.guid ~= event.owner and not signUp.external then
+            local moderator = event.md ~= nil and event.md[signUp.guid] == true
+            root:CreateDivider()
+            root:CreateButton(moderator and (CALENDAR_INVITELIST_CLEARMODERATOR or L["Clear moderator"])
+                or (CALENDAR_INVITELIST_SETMODERATOR or L["Set moderator"]), function()
+                Events.SetModerator(event.key, signUp.guid, not moderator)
+            end)
+        end
     end)
 end
 
@@ -182,6 +195,13 @@ end
 -- member's answer or a status given), in the game's colour for it.
 local function NameText(signUp)
     local name = UI.ClassColored(signUp.name or "?", signUp.class)
+    -- The organizer and the moderators marked as in the game's calendar.
+    local event = Events.Get(shownKey)
+    if event and signUp.guid == event.owner then
+        name = LEADER_ICON .. name
+    elseif event and Events.IsModerator(event, signUp.guid) then
+        name = MODERATOR_ICON .. name
+    end
     local state = States.Of(signUp)
     local mark = " " .. UI.Colored(("(%s)"):format(UI.StateName(state)), UI.StateColor(state))
     if signUp.no then

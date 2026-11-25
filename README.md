@@ -42,14 +42,18 @@ linked to the game's calendar.
   addon has none: if the calendar refuses one, nothing comes into the addon,
   and Create, New event and Restore event stay off, with the game's message,
   until one of your events leaves the calendar.
-- **Confirmations**: the event's organizer, the guild master and the
-  officers (the ranks with the game's "Has officer privileges") click a
+- **Confirmations**: the event's organizer and its moderators click a
   name to give it one of the game's statuses: confirmed, standby, out or
   tentative. They also change the
-  event (**Edit**) or cancel it (**Cancel event**, which can be undone). An
-  event that confirms sign-ups automatically confirms those who sign up in each role
-  while it has places, in the order they signed up, and leaves the rest on
-  standby.
+  event (**Edit**) or cancel it (**Cancel event**, which can be undone), as
+  far as the game's calendar lets them. An event that confirms sign-ups
+  automatically confirms those who sign up in each role while it has
+  places, in the order they signed up, and leaves the rest on standby.
+- **Moderators**, as in the game's calendar: the organizer names them from
+  a name's menu (**Set moderator**), among those in the event's list, and a
+  moderator may name or take back others too, never the organizer. They are
+  marked as the game's calendar marks them, and kept in step with it both
+  ways. Guild ranks give no rights over an event.
 - **Locked events**: the game's **Lock event**, in the form. Members then
   cannot sign up, answer tentative or remove their sign-up, in the addon as
   in the game's calendar; the organizer still changes their own state and

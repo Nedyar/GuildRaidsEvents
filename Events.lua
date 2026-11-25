@@ -3,9 +3,13 @@
 -- the player's own changes to them.
 --
 --   - An event is its organizer's (in their record), as its organizer or
---     an officer last left it: an officer's change travels in the officer's
---     own record (pe), and the newest of all counts (Rights.lua says who
---     may).
+--     a moderator last left it: a moderator's change travels in their own
+--     record (pe), and the newest of all counts (Rights.lua says who may).
+--   - Its moderators, as in the game's calendar: the organizer names them,
+--     and a moderator may name or take back others (never the organizer).
+--     Each naming travels in its maker's record (mo); every client replays
+--     them all in the order they were made, so one made by someone no
+--     longer a moderator by then does not count.
 --   - A member's answer (signed up, tentative, not coming; their role and a
 --     note) is in their own record, or brought in from outside the game by
 --     a bridge character (xs, API.lua): the newest of the two counts.
@@ -136,6 +140,33 @@ end
 local FIELDS = { "ty", "ti", "tm", "de", "sl", "ml", "ii", "wk", "nx", "ac", "lk", "x", "at" }
 Events.FIELDS = FIELDS
 
+-- An event's moderators, { [GUID] = true }: every record's namings of it
+-- (mo), replayed in the order they were made, each counting only if its
+-- maker was the organizer or a moderator by then.
+local function Moderators(event, guild)
+    local namings = {}
+    for guid, record in pairs(guild.members) do
+        for target, naming in pairs(record.mo and record.mo[event.key] or {}) do
+            namings[#namings + 1] = { by = guid, target = target, on = naming.on, at = naming.at }
+        end
+    end
+    table.sort(namings, function(a, b)
+        if a.at ~= b.at then
+            return a.at < b.at
+        elseif a.by ~= b.by then
+            return a.by < b.by
+        end
+        return a.target < b.target
+    end)
+    local moderators = {}
+    for _, naming in ipairs(namings) do
+        if naming.target ~= event.owner and (naming.by == event.owner or moderators[naming.by]) then
+            moderators[naming.target] = naming.on or nil
+        end
+    end
+    return moderators
+end
+
 local function Build()
     local events = {}
     local guild = ns.Data.CurrentGuild(false)
@@ -156,10 +187,13 @@ local function Build()
             end
         end
     end
+    for _, event in pairs(events) do
+        event.md = Moderators(event, guild)
+    end
     for guid, record in pairs(guild.members) do
         for key, patch in pairs(record.pe or {}) do
             local event = events[key]
-            if event and guid ~= event.owner and patch.at > event.at and ns.Rights.IsOfficer(guid) then
+            if event and guid ~= event.owner and patch.at > event.at and ns.Rights.MayManage(guid, event) then
                 for _, field in ipairs(FIELDS) do
                     event[field] = patch[field]
                 end
@@ -179,6 +213,19 @@ end
 
 function Events.Get(key)
     return key and Events.All()[key]
+end
+
+-- Whether a member moderates the event: named (Moderators), and in its
+-- list, as the game's calendar keeps its moderators: their own answer,
+-- signed up or tentative, in any status (one taken back leaves the list).
+function Events.IsModerator(event, guid)
+    if not (event.md and guid and event.md[guid]) then
+        return false
+    end
+    local guild = ns.Data.CurrentGuild(false)
+    local record = guild and guild.members[guid]
+    local answer = record and record.su and record.su[event.key]
+    return answer ~= nil and answer.st ~= Events.DECLINED
 end
 
 function Events.IsUpcoming(event, now)
@@ -485,7 +532,7 @@ local function OwnBase(record, key)
 end
 
 -- Changes an event the player may manage: fields as for Events.Create.
--- Its organizer changes it in their record, an officer in their own (pe).
+-- Its organizer changes it in their record, a moderator in their own (pe).
 -- cancelled: true or false to cancel it or bring it back, nil to leave it.
 -- Returns whether it could.
 function Events.Change(key, fields, cancelled)
@@ -550,7 +597,7 @@ function Events.Delete(key)
     if #record.ev == 0 then
         record.ev = nil
     end
-    for _, field in ipairs({ "su", "ms", "xs" }) do
+    for _, field in ipairs({ "su", "ms", "xs", "mo" }) do
         if record[field] then
             record[field][key] = nil
         end
@@ -595,6 +642,25 @@ function Events.SetStatus(key, guid, st)
     record.ms[key] = record.ms[key] or {}
     local old = record.ms[key][guid]
     record.ms[key][guid] = { st = st, at = NextChange(old and old.at) }
+    Touch(record, "statuses")
+    return true
+end
+
+-- Names a moderator of the event (on true) or takes it back, as its
+-- organizer or one of its moderators; never its organizer.
+function Events.SetModerator(key, guid, on)
+    local event = Events.Get(key)
+    local record = Own()
+    if not event or not record or not guid or guid == event.owner or not ns.Rights.MayIManage(event) then
+        return false
+    end
+    if not HasRoom(record.mo, key, LIMITS.statusEvents) or not HasRoom(record.mo and record.mo[key], guid, LIMITS.perEvent) then
+        return false
+    end
+    record.mo = record.mo or {}
+    record.mo[key] = record.mo[key] or {}
+    local old = record.mo[key][guid]
+    record.mo[key][guid] = { on = on == true, at = NextChange(old and old.at) }
     Touch(record, "statuses")
     return true
 end
@@ -695,7 +761,7 @@ function Events.Tidy()
             record[field] = nil
         end
     end
-    for _, field in ipairs({ "ms", "xs" }) do
+    for _, field in ipairs({ "ms", "xs", "mo" }) do
         for key, list in pairs(record[field] or {}) do
             local newest = 0
             for _, item in pairs(list) do
@@ -723,10 +789,7 @@ function Events.Init()
         end)
     end
     ns.On("DataChanged", Changed)
-    ns.On("RosterUpdated", function()
-        ns.Rights.ForgetRanks()
-        Changed()
-    end)
+    ns.On("RosterUpdated", Changed)
     C_Timer.After(30, Events.Tidy)
     C_Timer.NewTicker(600, Events.Tidy)
 end

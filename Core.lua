@@ -1,7 +1,7 @@
 -- Guild Raids & Events: organizes the guild's raids, dungeons and other
 -- events from a tab on the guild window (GuildTab.lua), linked to the
 -- game's calendar (Calendar.lua). Members sign up with a role and a note,
--- the organizer and the officers confirm them or leave them on standby, and
+-- the organizer and its moderators confirm them or leave them on standby, and
 -- each member is reminded before the events they go to (Reminders.lua).
 -- Other addons read the events and add sign-ups made outside the game
 -- through the public API (API.lua).

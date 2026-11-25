@@ -20,11 +20,11 @@ Pack.LIMITS = {
     noteLetters = 60,  -- a sign-up's note, in letters (the box in an event's view)
     note = 240,      -- and in bytes: up to 4 each
     events = EVENTS,       -- events a record holds
-    patches = EVENTS,      -- events one officer changed
+    patches = EVENTS,      -- events one moderator changed
     signUps = EVENTS,      -- events one member answered (an organizer answers each of theirs)
     statusEvents = EVENTS, -- events one member gave statuses in (an organizer, each of theirs),
-                           -- or brought outside sign-ups to
-    perEvent = 1000, -- statuses or outside sign-ups in one event: a guild's members at most
+                           -- brought outside sign-ups to, or named moderators in
+    perEvent = 1000, -- statuses, outside sign-ups or moderators in one event: a guild's members at most
     slots = 40,      -- places of one role
     level = 255,
     bridges = 20,    -- characters the guild master lets add outside sign-ups
@@ -48,13 +48,16 @@ Pack.LIMITS = {
 --       answer it, as the game's calendar has it), x = cancelled, ci = its event
 --       ID in the game's calendar, 0 until it is there, at = time of its
 --       last change },
---   pe = the guild's events an officer changed, the event's whole fields as
+--   pe = the guild's events a moderator changed, the event's whole fields as
 --       they left it: { [key] = { at, ty, ti, tm, de, sl, ml, ii, wk, nx, ac, lk, x } },
 --   su = its sign-ups: { [key] = { st = 1 signed up, 2 tentative, 3 not
 --       coming, ro = role (1 tank, 2 healer, 3 damage), no = note, at =
 --       time of the answer } },
---   ms = the statuses it gave, as organizer or officer: { [key] = { [GUID]
+--   ms = the statuses it gave, as organizer or moderator: { [key] = { [GUID]
 --       = { st = 0 none, 1 confirmed, 2 standby, 3 out, 4 tentative, at = time } } },
+--   mo = the moderators it named or took back, as organizer or moderator:
+--       { [key] = { [GUID] = { on = true or false, at = time } } } (packed
+--       last, after cf: a record of an older version has none),
 --   xs = sign-ups made outside the game (by another addon, through the
 --       API) that it brought in: { [key] = { [GUID] = { st, ro, no, at } } },
 --   cf = the guild's options, from its guild master only: { t = time,
@@ -70,7 +73,7 @@ local function Has(flags, flag)
     return math.floor(flags / flag) % 2 == 1
 end
 
--- The fields every event and officer change has.
+-- The fields every event and moderator's change has.
 local function WriteFields(writer, event)
     writer:Byte(event.ty)
     writer:Str(event.ti)
@@ -278,6 +281,15 @@ local function ReadOptions(reader, record)
     record.cf = options
 end
 
+local function WriteModerator(writer, moderator)
+    writer:Byte(moderator.on and PRESENT or ABSENT)
+    writer:UInt(moderator.at)
+end
+
+local function ReadModerator(reader)
+    return { on = reader:Byte() == PRESENT, at = reader:UInt() }
+end
+
 function Pack.WriteRecord(writer, guid, record)
     local body = Pack.Writer()
     body:Str(guid)
@@ -288,6 +300,7 @@ function Pack.WriteRecord(writer, guid, record)
     WriteEvents(body, record)
     WriteAnswers(body, record)
     WriteOptions(body, record)
+    WriteNested(body, record.mo, WriteModerator)
     writer:Str(body:Result())
 end
 
@@ -304,6 +317,10 @@ function Pack.ReadRecord(reader)
     ReadEvents(reader, record)
     ReadAnswers(reader, record)
     ReadOptions(reader, record)
+    -- Packed by an older version, the record ends here.
+    if not reader:AtEnd() then
+        record.mo = ReadNested(reader, LIMITS.statusEvents, "moderators", ReadModerator)
+    end
     -- Anything after this was added by a later version.
     return guid, record
 end

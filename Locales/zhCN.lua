@@ -48,6 +48,8 @@ ns.RegisterLocale("zhCN", function(L)
     L["Level %d"] = "等级 %d"
     L["Signed up outside the game."] = "在游戏外报名。"
     L["Click to give a status."] = "点击设置状态。"
+    L["Set moderator"] = "设为管理员"
+    L["Clear moderator"] = "取消管理员"
     L["Your role"] = "你的职责"
     L["Note"] = "备注"
     L["Back"] = "返回"

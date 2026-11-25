@@ -58,6 +58,7 @@ end
 --     it (a calendar event made again, restoring the event, agreed nothing);
 --   statuses[key] = { [GUID] = calendar status }: likewise, the statuses of
 --     its sign-ups (forgotten when its calendar event is made again);
+--   moderators[key] = { [GUID] = true or false }: likewise, its moderators;
 --   strays[event ID] = start: calendar events of events deleted from the
 --     addon, deleted from the calendar too and never taken into the addon.
 function Read.State(name)

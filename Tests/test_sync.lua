@@ -62,10 +62,17 @@ H.eq(SignUpOf(member, officer.guid).status, 1, "the member sees the officer conf
 H.eq(SignUpOf(member, member.guid).status, 2, "and themselves on standby now")
 H.check(not member.ns.Events.SetStatus(key, member.guid, 1), "a member may not give statuses")
 
-H.section("Sync: an officer changes the event")
+H.section("Sync: a moderator changes the event")
 local event = officer.ns.Events.Get(key)
+H.check(not officer.ns.Events.Change(key, { ty = 0, ti = "Molten Core (moved)", tm = event.tm + 3600, de = event.de, ml = 55,
+    sl = event.sl, ac = true }), "an officer may not change it by rank alone")
+H.check(organizer.ns.Events.SetModerator(key, officer.guid, true), "the organizer names them a moderator (they are in its list)")
+world:RunFor(30)
+H.check(officer.ns.Events.IsModerator(officer.ns.Events.Get(key), officer.guid), "everyone knows")
+event = officer.ns.Events.Get(key)
 H.check(officer.ns.Events.Change(key, { ty = 0, ti = "Molten Core (moved)", tm = event.tm + 3600, de = event.de, ml = 55,
-    sl = event.sl, ac = true }), "an officer changes it")
+    sl = event.sl, ac = true }), "the moderator changes it")
+H.check(not officer.ns.Events.SetModerator(key, organizer.guid, false), "but cannot take the organizer back")
 world:RunFor(30)
 H.eq(organizer.ns.Events.Get(key).ti, "Molten Core (moved)", "the organizer sees the change")
 H.eq(member.ns.Events.Get(key).tm, start + 3600, "and so does everyone")

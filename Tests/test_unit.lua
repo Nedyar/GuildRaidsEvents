@@ -50,6 +50,7 @@ local record = {
         ["Player-1-0000000A/t2abc"] = { st = 3, at = now } },
     ms = { ["Player-1-0000000A/t2abc"] = { ["Player-1-0000000C"] = { st = 2, at = now }, ["Player-1-0000000D"] = { st = 0, at = now } } },
     xs = { ["Player-1-0000000A/t2abc"] = { ["Player-1-0000000E"] = { st = 2, ro = 1, no = "from Discord", at = now } } },
+    mo = { ["Player-1-0000000A/t2abc"] = { ["Player-1-0000000C"] = { on = true, at = now }, ["Player-1-0000000D"] = { on = false, at = now } } },
     cf = { t = now, br = { "Player-1-0000000F" } },
 }
 local key, back = Pack.ReadRecord(Pack.Reader(Pack.RecordString(GUID, record)))
@@ -59,6 +60,14 @@ local bare = { n = "Solo Name", t = now, av = 100 }
 _, back = Pack.ReadRecord(Pack.Reader(Pack.RecordString(GUID, bare)))
 H.check(back.ev == nil and back.su == nil and back.ms == nil and back.xs == nil and back.cf == nil and back.pe == nil,
     "a record with nothing reads with nothing")
+-- As the versions before moderators packed it (they end before them).
+local bareString = Pack.RecordString(GUID, bare)
+local bareReader = Pack.Reader(bareString)
+local bareLength = bareReader:UInt()
+local older = Pack.Writer()
+older:Str(bareString:sub(bareReader.pos, bareReader.pos + bareLength - 2))
+local olderOK, olderGUID, olderBack = pcall(Pack.ReadRecord, Pack.Reader(older:Result()))
+H.check(olderOK and olderGUID == GUID and olderBack.mo == nil, "a record packed before moderators still reads")
 -- A later version's extra fields are skipped, and the next record still reads.
 local body = Pack.RecordString(GUID, record)
 local reader = Pack.Reader(body)
@@ -131,9 +140,11 @@ H.eq(UI.FindPlaces(1, "IGNEA")[1].name, "Sima Ígnea", "searching ignores case a
 H.eq(#UI.FindPlaces(1, "  "), 5, "an empty search finds all")
 H.eq(#UI.FindPlaces(1, "zzz"), 0, "and one that matches nothing, none")
 
-H.section("Events: an event as its organizer or an officer left it")
--- A guild of four: the guild master (solo), an officer, a member and a
--- bridge character, whose records are set by hand.
+H.section("Events: an event as its organizer or a moderator left it")
+-- A guild of five: the guild master (solo), a member who organizes, the
+-- moderator they name, a bridge character and another member, whose
+-- records are set by hand. (The moderator was an officer once: ranks give
+-- nothing now.)
 local officerKey, officer = world:AddMember("Officer Name", nil, { rank = "Officer", rankIndex = 1 })
 local _, member = world:AddMember("Member Name", nil, { rank = "Member", rankIndex = 3 })
 local _, bridge = world:AddMember("Bridge Name", nil, { rank = "Member", rankIndex = 3 })
@@ -141,7 +152,6 @@ local _, other = world:AddMember("Other Name", nil, { rank = "Member", rankIndex
 world.officerRanks = { [1] = true }
 world:RosterChanged()
 world:RunFor(5)
-ns.Rights.ForgetRanks()
 local guild = Data.CurrentGuild(true)
 local base = { id = "e1", ty = 0, ti = "Molten Core", tm = Events.Now() + 3 * 86400, ml = 0, ci = 0, at = now - 100,
     sl = { t = 1, h = 1, d = 2 } }
@@ -151,24 +161,31 @@ local eventKey = member .. "/e1"
 H.check(Events.Get(eventKey) ~= nil and Events.Get(eventKey).owner == member, "a member's event is the guild's, under its key")
 guild.members[other] = { t = now, av = 100, n = "Other Name", pe = { [eventKey] = { ty = 0, ti = "Hacked", tm = base.tm, ml = 0, at = now } } }
 Events.Invalidate()
-H.eq(Events.Get(eventKey).ti, "Molten Core", "a member who is no officer cannot change it")
+H.eq(Events.Get(eventKey).ti, "Molten Core", "someone who is no moderator cannot change it")
 guild.members[officer] = { t = now, av = 100, n = "Officer Name", pe = { [eventKey] = { ty = 0, ti = "Molten Core (moved)", tm = base.tm + 3600,
     ml = 0, at = now - 50, sl = { t = 1, h = 1, d = 2 } } } }
 Events.Invalidate()
-H.eq(Events.Get(eventKey).ti, "Molten Core (moved)", "an officer's newer change counts")
+H.eq(Events.Get(eventKey).ti, "Molten Core", "not an officer either: ranks give nothing")
+guild.members[member].mo = { [eventKey] = { [officer] = { on = true, at = now - 80 } } }
+Events.Invalidate()
+H.eq(Events.Get(eventKey).ti, "Molten Core", "named a moderator, but not in the event's list: nothing yet")
+guild.members[officer].su = { [eventKey] = { st = 2, ro = 1, at = now - 90 } }
+Events.Invalidate()
+H.eq(Events.Get(eventKey).ti, "Molten Core (moved)", "in its list (tentative will do), a moderator's newer change counts")
 H.eq(Events.Get(eventKey).by, officer, "and says who made it")
 base.at = now - 10
 base.ti = "Molten Core (organizer)"
 Events.Invalidate()
 H.eq(Events.Get(eventKey).ti, "Molten Core (organizer)", "the organizer's newer change wins in turn")
-world.officerRanks = {}
-ns.Rights.ForgetRanks()
+guild.members[officer].mo = { [eventKey] = { [other] = { on = true, at = now - 70 }, [member] = { on = false, at = now - 60 } } }
+Events.Invalidate()
+H.check(Events.Get(eventKey).md[other] and not Events.Get(eventKey).md[member],
+    "a moderator names another; the organizer is never taken back")
+guild.members[member].mo[eventKey][officer] = { on = false, at = now - 5 }
 guild.members[officer].pe[eventKey].at = now
 Events.Invalidate()
-H.eq(Events.Get(eventKey).ti, "Molten Core (organizer)", "an officer no longer one no longer counts")
-world.officerRanks = { [1] = true }
-ns.Rights.ForgetRanks()
-guild.members[officer].pe = nil
+H.eq(Events.Get(eventKey).ti, "Molten Core (organizer)", "a moderator taken back no longer counts")
+guild.members[officer].pe, guild.members[officer].mo, guild.members[member].mo = nil, nil, nil
 
 H.section("Events: sign-ups, statuses and confirming by itself")
 local event
@@ -206,8 +223,11 @@ Refresh()
 H.eq(Events.SignUps(event)[1].status, Events.STANDBY, "a member who may not manage it gives no status")
 guild.members[solo.guid].ms = { [eventKey] = { [officer] = { st = 3, at = now + 2 } } }
 Refresh()
+H.eq(Events.SignUps(event)[2].status, Events.CONFIRMED, "the guild master gives none either, by rank alone")
+guild.members[member].mo = { [eventKey] = { [solo.guid] = { on = true, at = now - 60 } } }
+Refresh()
 signUps = Events.SignUps(event)
-H.eq(signUps[2].status, Events.OUT, "the guild master's newer status wins")
+H.eq(signUps[2].status, Events.OUT, "named a moderator, their newer status wins")
 H.eq(signUps[1].status, Events.CONFIRMED, "and the place goes back to the first tank")
 H.eq(Events.Counts(signUps)[1], 1, "those out are not counted")
 
@@ -247,7 +267,7 @@ H.check(Events.Get(created).x == true, "it is marked cancelled")
 H.check(Events.Change(created, { ty = 1, ti = "Scholomance", tm = Events.Get(created).tm, ml = 55 }), "changing it again")
 H.check(Events.Get(created).x == true, "keeps it cancelled")
 H.check(Events.Cancel(created, false) and not Events.Get(created).x, "and it can be brought back")
-H.check(Events.Change(eventKey, { ty = 0, ti = "Molten Core (by the master)", tm = event.tm, ml = 0 }), "the guild master changes a member's event")
+H.check(Events.Change(eventKey, { ty = 0, ti = "Molten Core (by the master)", tm = event.tm, ml = 0 }), "a moderator (the guild master, named) changes a member's event")
 H.check(guild.members[solo.guid].pe[eventKey] ~= nil and Events.Get(eventKey).ti == "Molten Core (by the master)",
     "in their own record")
 H.check(Events.Answer(created, Events.TENTATIVE, Events.HEALER, "  maybe  "), "answering")

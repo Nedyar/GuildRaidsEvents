@@ -12,8 +12,8 @@
 --
 -- What a player does in the game's calendar window: world:WindowEdit(id,
 -- fields), world:WindowDelete(id), world:WindowCreate(client, fields),
--- world:WindowAnswer(client, id, status) and world:WindowStatus(id, guid,
--- status).
+-- world:WindowAnswer(client, id, status), world:WindowStatus(id, guid,
+-- status) and world:WindowModerator(id, guid, on).
 return function(H)
     H.NoOpMethods.SetMaxLines = true
     H.NoOpMethods.SetJustifyV = true
@@ -193,6 +193,12 @@ return function(H)
         Calendar(world).events[id].invites[guid].status = status
         Broadcast(world, "CALENDAR_UPDATE_INVITE_LIST")
     end
+    -- The creator (or a moderator) names a moderator in the window, or
+    -- takes it back.
+    local function WindowModerator(world, id, guid, on)
+        Calendar(world).events[id].invites[guid].modStatus = on and "MODERATOR" or ""
+        Broadcast(world, "CALENDAR_UPDATE_INVITE_LIST")
+    end
 
     local function NameOf(world, guid)
         for _, member in ipairs(world.roster) do
@@ -300,7 +306,9 @@ return function(H)
                 end
                 return {
                     eventID = event.id, title = event.title, calendarType = "GUILD_EVENT", eventType = event.type,
-                    inviteStatus = MyStatus(event), modStatus = event.creator == client.guid and "CREATOR" or "",
+                    inviteStatus = MyStatus(event),
+                    modStatus = event.creator == client.guid and "CREATOR"
+                        or event.invites[client.guid] and event.invites[client.guid].modStatus or "",
                     invitedBy = NameOf(world, event.creator), startTime = StartTime(event.start), inviteType = 1,
                     isLocked = event.locked == true,
                 }
@@ -415,9 +423,11 @@ return function(H)
             IsEventOpen = function()
                 return open ~= nil
             end,
+            -- Its creator and its moderators.
             EventCanEdit = function()
                 local event = open and open.id and calendar.events[open.id]
-                return event ~= nil and event.creator == client.guid
+                local mine = event and event.invites[client.guid]
+                return event ~= nil and (event.creator == client.guid or mine ~= nil and mine.modStatus == "MODERATOR")
             end,
             GetEventInfo = function()
                 local event = open and open.id and calendar.events[open.id]
@@ -500,6 +510,30 @@ return function(H)
                     name = entry.name, guid = entry.guid, inviteStatus = entry.invite.status,
                     modStatus = entry.invite.modStatus, inviteIsMine = entry.guid == client.guid,
                 }
+            end,
+            -- By its creator or a moderator, on anyone in the list but its
+            -- creator; no click needed.
+            EventSetModerator = function(index)
+                Log("EventSetModerator")
+                local event = open and open.id and calendar.events[open.id]
+                local entry = event and Invites(event)[index]
+                local mine = event and event.invites[client.guid]
+                if entry and entry.invite.modStatus ~= "CREATOR"
+                        and (event.creator == client.guid or mine and mine.modStatus == "MODERATOR") then
+                    entry.invite.modStatus = "MODERATOR"
+                    Broadcast(world, "CALENDAR_UPDATE_INVITE_LIST")
+                end
+            end,
+            EventClearModerator = function(index)
+                Log("EventClearModerator")
+                local event = open and open.id and calendar.events[open.id]
+                local entry = event and Invites(event)[index]
+                local mine = event and event.invites[client.guid]
+                if entry and entry.invite.modStatus == "MODERATOR"
+                        and (event.creator == client.guid or mine and mine.modStatus == "MODERATOR") then
+                    entry.invite.modStatus = ""
+                    Broadcast(world, "CALENDAR_UPDATE_INVITE_LIST")
+                end
             end,
             EventSetInviteStatus = function(index, status)
                 Log("EventSetInviteStatus")
@@ -594,7 +628,7 @@ return function(H)
         end
         world.ShowHidden = ShowHidden
         world.WindowEdit, world.WindowDelete, world.WindowCreate = WindowEdit, WindowDelete, WindowCreate
-        world.WindowAnswer, world.WindowStatus = WindowAnswer, WindowStatus
+        world.WindowAnswer, world.WindowStatus, world.WindowModerator = WindowAnswer, WindowStatus, WindowModerator
         return world
     end
 end

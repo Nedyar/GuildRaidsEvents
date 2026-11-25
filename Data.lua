@@ -77,7 +77,7 @@ function Data.IsKey(key)
     return guid ~= nil and Lib.IsGUID(guid) and Data.IsID(id)
 end
 
--- The fields of an event (or of an officer's change of one), checked: a new
+-- The fields of an event (or of a moderator's change of one), checked: a new
 -- table, or nil.
 local function CleanFields(event, now)
     if type(event) ~= "table" or not Lib.IsCount(event.ty, 4) or not IsTime(event.at, now)
@@ -152,6 +152,13 @@ local function CleanStatus(status, now)
         return nil
     end
     return { st = status.st, at = status.at }
+end
+
+local function CleanModerator(moderator, now)
+    if type(moderator) ~= "table" or type(moderator.on) ~= "boolean" or not IsTime(moderator.at, now) then
+        return nil
+    end
+    return { on = moderator.on, at = moderator.at }
 end
 
 -- The string keys of a table, sorted: what goes over a limit is the same
@@ -254,6 +261,7 @@ function Data.CleanRecord(record, now)
     end
     clean.ms = CleanNested(record.ms, CleanStatus, now)
     clean.xs = CleanNested(record.xs, CleanAnswer, now)
+    clean.mo = CleanNested(record.mo, CleanModerator, now)
     if record.cf ~= nil then
         clean.cf = CleanOptions(record.cf, now)
     end

@@ -54,7 +54,7 @@ end
 -- One of our events linked to a calendar event made anew (restoring it):
 -- the statuses go to it from the addon, as nothing was agreed with it.
 function Organizer.Linked(key, calendarID)
-    Read.State("statuses")[key] = nil
+    Read.State("statuses")[key], Read.State("moderators")[key] = nil, nil
     Statuses.Forget(key)
     Events.SetCalendarID(key, calendarID)
 end
@@ -406,7 +406,7 @@ end
 -- what the calendar knew of it goes; its calendar event, if still there, is
 -- deleted too (ToDelete), and never taken into the addon again (Adopt).
 function Organizer.Forget(key, event)
-    for _, name in ipairs({ "known", "created", "gone", "byCalendar", "answers", "statuses" }) do
+    for _, name in ipairs({ "known", "created", "gone", "byCalendar", "answers", "statuses", "moderators" }) do
         Read.State(name)[key] = nil
     end
     Send.Forget(key)

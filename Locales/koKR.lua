@@ -48,6 +48,8 @@ ns.RegisterLocale("koKR", function(L)
     L["Level %d"] = "레벨 %d"
     L["Signed up outside the game."] = "게임 밖에서 신청함."
     L["Click to give a status."] = "클릭하여 상태를 지정하세요."
+    L["Set moderator"] = "운영자로 지정"
+    L["Clear moderator"] = "운영자 해제"
     L["Your role"] = "내 역할"
     L["Note"] = "메모"
     L["Back"] = "뒤로"

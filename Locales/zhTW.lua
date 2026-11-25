@@ -48,6 +48,8 @@ ns.RegisterLocale("zhTW", function(L)
     L["Level %d"] = "等級 %d"
     L["Signed up outside the game."] = "在遊戲外報名。"
     L["Click to give a status."] = "點擊設定狀態。"
+    L["Set moderator"] = "設為管理員"
+    L["Clear moderator"] = "取消管理員"
     L["Your role"] = "你的職責"
     L["Note"] = "備註"
     L["Back"] = "返回"

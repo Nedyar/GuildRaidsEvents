@@ -1,9 +1,9 @@
 -- CalendarStatuses.lua: the statuses of the sign-ups of the organizer's
--- events in the game's calendar (see Calendar.lua), both ways, with no
--- click: the organizer's client opens an event and gives each sign-up the
--- addon's status, and takes into the addon a status given in the game's
--- calendar window (also the organizer's own line: the game keeps an
--- event's creator in it).
+-- events in the game's calendar (see Calendar.lua), and their moderators,
+-- both ways, with no click: the organizer's client opens an event and gives
+-- each sign-up the addon's status and moderation, and takes into the addon
+-- a status or a moderator given in the game's calendar window (also the
+-- organizer's own line: the game keeps an event's creator in it).
 local _, ns = ...
 
 local Calendar, Read, Organizer, Statuses = ns.Calendar, ns.CalendarRead, ns.CalendarOrganizer, ns.CalendarStatuses
@@ -40,23 +40,60 @@ local function TakeOwnStatus(key, event, status)
     end
 end
 
--- The same wanted statuses as one text, to tell when they changed.
+-- The same wanted statuses, and the moderators, as one text, to tell when
+-- they changed.
 local function StatusSignature(event)
     local parts = {}
     for guid, status in pairs(WantedStatuses(event)) do
         parts[#parts + 1] = guid .. "=" .. status
     end
+    for guid in pairs(event.md or {}) do
+        parts[#parts + 1] = "m:" .. guid
+    end
     table.sort(parts)
     return table.concat(parts, ",")
 end
 
+-- Whether the organizer's own record names that moderator (on), takes it
+-- back (off), or says nothing (nil).
+local function OwnNaming(key, guid)
+    local record = ns.Data.GetOwnRecord(false)
+    local naming = record and record.mo and record.mo[key] and record.mo[key][guid]
+    return naming and naming.on
+end
+
+-- One line of the open event's list: its moderation as the calendar has it
+-- and as the addon wants it (agreed: as both last agreed, the moderators of
+-- the event as the calendar and the addon last agreed on them). A change
+-- made in the calendar comes into the addon, as the organizer's; a change
+-- made in the addon (perhaps by a moderator) is returned to send, and the
+-- organizer's record names it too, so it stays should its maker stop being
+-- a moderator, as in the game's calendar.
+local function ModeratorChange(key, event, guid, has, agreedOf)
+    local want = event.md ~= nil and event.md[guid] == true
+    local agreed = agreedOf[guid] == true
+    if has == want then
+        agreedOf[guid] = has
+    elseif want == agreed then
+        agreedOf[guid] = has
+        Events.SetModerator(key, guid, has)
+        Note("from the calendar", "took a moderator named there: " .. event.ti)
+    else
+        if OwnNaming(key, guid) ~= want then
+            Events.SetModerator(key, guid, want)
+        end
+        return { guid = guid, moderator = want }
+    end
+end
+
 -- The open event's sign-ups: statuses given in the calendar into the
--- addon; then those whose calendar status is not the addon's: { guid,
--- status }.
+-- addon; then those whose calendar status or moderation is not the
+-- addon's: { guid, status } or { guid, moderator = true or false }.
 local function StatusChanges(key, event)
     local wanted = WantedStatuses(event)
-    local statuses = Read.State("statuses")
+    local statuses, moderators = Read.State("statuses"), Read.State("moderators")
     statuses[key] = statuses[key] or {}
+    moderators[key] = moderators[key] or {}
     local agreedOf = statuses[key]
     local changes = {}
     for index = 1, Plain(ns.Try(C_Calendar.GetNumInvites)) or 0 do
@@ -82,6 +119,12 @@ local function StatusChanges(key, event)
             end
         elseif ns.CanRead(invite) and Plain(invite.modStatus) ~= "CREATOR" then
             local status, guid = Plain(invite.inviteStatus), Plain(invite.guid)
+            -- Anyone in the list may moderate, whatever their status.
+            local moderation = guid and ModeratorChange(key, event, guid, Plain(invite.modStatus) == "MODERATOR",
+                moderators[key])
+            if moderation then
+                changes[#changes + 1] = moderation
+            end
             local target = guid and wanted[guid]
             local signedUp = status ~= Enum.CalendarStatus.NotSignedup and status ~= Enum.CalendarStatus.Declined
             if target and signedUp then
@@ -135,7 +178,7 @@ local function EventToMirror(now)
 end
 
 -- Opens the event, takes in what was given in the calendar, and gives each
--- sign-up the addon's status, one at a time.
+-- sign-up the addon's status and moderation, one at a time.
 local function Mirror(item)
     Read.openKey = nil
     Read.busy = true
@@ -158,7 +201,14 @@ local function Mirror(item)
                 Read.Finish()
                 return
             end
-            if index then
+            if index and change.moderator ~= nil then
+                if change.moderator then
+                    C_Calendar.EventSetModerator(index)
+                else
+                    C_Calendar.EventClearModerator(index)
+                end
+                Read.State("moderators")[item.key][change.guid] = change.moderator
+            elseif index then
                 C_Calendar.EventSetInviteStatus(index, change.status)
                 Read.State("statuses")[item.key][change.guid] = change.status
             end

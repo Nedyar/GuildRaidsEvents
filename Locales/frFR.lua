@@ -48,6 +48,8 @@ ns.RegisterLocale("frFR", function(L)
     L["Level %d"] = "Niveau %d"
     L["Signed up outside the game."] = "Inscrit hors du jeu."
     L["Click to give a status."] = "Cliquez pour attribuer un statut."
+    L["Set moderator"] = "Nommer modérateur"
+    L["Clear moderator"] = "Retirer le modérateur"
     L["Your role"] = "Votre rôle"
     L["Note"] = "Note"
     L["Back"] = "Retour"

@@ -153,22 +153,54 @@ H.eq(ns.Events.Get(key).ti, "Molten Core (21:30)", "and the addon goes back to w
 H.eq(#ns.Calendar.Pending(), 0, "nothing waits")
 world.errors = {}
 
-H.section("Calendar: an officer the game does not let change it")
+H.section("Calendar: moderators, as the game's calendar has them")
 local officer = world:NewClient("Officer Name", { rank = "Officer", rankIndex = 1 })
 world:Login(officer)
 world:RunFor(60)
+H.check(not officer.ns.Rights.MayIManage(officer.ns.Events.Get(key)), "an officer does not manage it by rank")
+H.check(officer.ns.Events.Answer(key, officer.ns.Events.SIGNED, officer.ns.Events.HEALER), "they sign up")
+world:RunFor(60)
+H.check(ns.Events.SetModerator(key, officer.guid, true), "the organizer names them a moderator")
+world:RunFor(30)
+H.eq(InCalendar().invites[officer.guid].modStatus, "MODERATOR", "in the calendar too, with no click")
 officer.ns.EventForm.Open(key)
 world:RunFor(5)
 local officerForm = officer.ns.EventForm.Frame()
-H.check(not officerForm.Save:IsEnabled() and officerForm.Save.reason == "The game's calendar does not let you change this event.",
-    "Save is off, saying why")
+H.check(officerForm.Save:IsEnabled(), "the moderator's Save is on")
+officerForm.TitleBox:SetText("MC")
+H.Click(officerForm.Save)
+H.eq(InCalendar().title, "MC", "their change goes into the calendar in their own click")
+world:RunFor(30)
+H.eq(ns.Events.Get(key).ti, "MC", "and the organizer has it")
+world:WindowModerator(calendarID, second.guid, true)
+-- (The organizer's event is not open in their own window here: their next
+-- look at its sign-ups finds it.)
+world:RunFor(150)
+H.check(ns.Events.Get(key).md[second.guid] and member.ns.Events.IsModerator(member.ns.Events.Get(key), second.guid),
+    "a moderator named in the game's window comes into the addon, for everyone")
+H.check(officer.ns.Events.SetModerator(key, member.guid, true), "a moderator names another")
+world:RunFor(30)
+H.eq(InCalendar().invites[member.guid].modStatus, "MODERATOR", "the calendar takes it from the organizer's client")
+H.check(ns.Events.SetModerator(key, officer.guid, false), "the organizer takes the first back")
+world:RunFor(30)
+H.check(InCalendar().invites[officer.guid].modStatus ~= "MODERATOR" and not ns.Events.IsModerator(ns.Events.Get(key), officer.guid),
+    "gone in both")
+H.check(InCalendar().invites[member.guid].modStatus == "MODERATOR" and ns.Events.IsModerator(ns.Events.Get(key), member.guid),
+    "the one they named stays, as in the game's calendar")
+officer.ns.EventForm.Open(key)
+world:RunFor(5)
+H.check(not officerForm:IsShown() or not officerForm.Save:IsEnabled(), "no longer a moderator: their Save is off")
 officerForm:Hide()
-officer.ns.Calendar.Cancel(key)
+member.ns.Calendar.Cancel(key)
 world:RunFor(10)
-H.check(not ns.Events.Get(key).x and not officer.ns.Events.Get(key).x and not officer.ns.Calendar.Cancelling(key)
-    and not InCalendar().deleted, "Cancel event: the game does not let them delete it, so nothing changes")
-H.eq(officer.ns.Calendar.lastError, "The game's calendar does not let you delete this event.", "and the window says why")
-Errors("changes")
+H.check(not ns.Events.Get(key).x and not member.ns.Calendar.Cancelling(key) and not InCalendar().deleted,
+    "Cancel event, when the game does not let a moderator delete it: nothing changes")
+H.eq(member.ns.Calendar.lastError, "The game's calendar does not let you delete this event.", "and the window says why")
+for _, guid in ipairs({ second.guid, member.guid }) do
+    ns.Events.SetModerator(key, guid, false)
+end
+world:RunFor(30)
+Errors("moderators")
 
 H.section("Calendar: changes made in the game's calendar window")
 world:WindowEdit(calendarID, { title = "MC (moved)", hour = 22, minute = 0 })

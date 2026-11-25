@@ -48,6 +48,8 @@ ns.RegisterLocale("ruRU", function(L)
     L["Level %d"] = "Уровень %d"
     L["Signed up outside the game."] = "Записан вне игры."
     L["Click to give a status."] = "Щёлкните, чтобы назначить статус."
+    L["Set moderator"] = "Назначить модератором"
+    L["Clear moderator"] = "Снять модератора"
     L["Your role"] = "Ваша роль"
     L["Note"] = "Заметка"
     L["Back"] = "Назад"
