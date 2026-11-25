@@ -131,5 +131,8 @@ ns.RegisterLocale("ruRU", function(L)
     L["Remove sign-up"] = "Отменить запись"
     L["Not signed up"] = "Не записан"
     L["Takes your sign-up back: you are a moderator no more, as in the game's calendar."] = "Отменяет вашу запись: вы больше не модератор, как в календаре игры."
-    L["Wait for the event to show again in your calendar (about an hour after removing your sign-up, or when you log in again)."] = "Дождитесь, пока событие снова появится в вашем календаре (около часа после отмены записи или после повторного входа в игру)."
+    L["Wait for the event to show again in your calendar (logging out and back in usually does it; /reload is not enough)."] = "Подождите, пока событие снова появится в вашем календаре (обычно помогает выйти и снова войти; /reload не помогает)."
+    L["Calendar"] = "Календарь"
+    L["Opens or closes the game's calendar."] = "Открывает или закрывает календарь игры."
+    L["The guild's raids and events, in the guild window."] = "Рейды и события гильдии в окне гильдии."
 end)

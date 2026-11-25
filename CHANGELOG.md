@@ -2,7 +2,7 @@
 
 ## 0.1.0 - First version
 
-- **A Raids & Events tab on the guild window**, under Blizzard's own tabs: the guild's upcoming events, the soonest first, and those of the last week. Each row shows when the event is, its type and organizer, how many go in each role (signed up or confirmed), and your answer.
+- **A Raids & Events tab on the guild window**, under Blizzard's own tabs: the guild's upcoming events, the soonest first, and those of the last week. Each row shows when the event is, its type and organizer, how many go in each role (signed up or confirmed), and your answer. A Calendar button opens the game's calendar, and the calendar's window has a button that opens the tab.
 - **Events with sign-ups by role**: tanks, healers and damage, each with places or no limit, a minimum level, and a short note with each sign-up. Under the event's columns, only signing up, as in the game's calendar: a role, a note, Signed up or Tentative; once signed up, Remove sign-up (nothing for the organizer). Your note and role, once signed up, from your name's menu (right-click).
 - **Your role, ready**: the first time, the one your class and specialization stand for (the talent tree with the most points of your active spec group; a Feral druid tanks); then the one you chose last with that specialization. Sign-ups made in the game's calendar take it too.
 - **Where it takes place**: a raid or a dungeon names its instance, PvP world PvP or a battleground, picked from a list with the game's own names. The day is picked in a month's calendar, up to the last day the game's calendar takes, and the time from lists as in the game's calendar (its 12- or 24-hour clock, minutes five by five).

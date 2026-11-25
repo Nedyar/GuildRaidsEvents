@@ -293,6 +293,108 @@ function UI.SetTooltip(widget, title, text)
     widget:SetScript("OnLeave", GameTooltip_Hide)
 end
 
+-- A window's title bar button with an icon, beside its close button, as
+-- Bot'tar Sync's (the same look): the red frame of the game's close button,
+-- with its pressed and highlight looks, as big as the window's close
+-- button; its cross covered by its own plain red (a thin column of it,
+-- stretched), and the icon on it, square, without the border the game's
+-- icons carry. Placed left of close, as far from it as the game's buttons
+-- are from each other.
+local TITLE_FRAME, TITLE_PRESSED, TITLE_HIGHLIGHT = "RedButton-Exit", "RedButton-Exit-Pressed", "RedButton-Highlight"
+local TITLE_SIZE = 24          -- when the window's close button has no size
+local TITLE_RIM = 0.125        -- the frame's rim, part of the size: the red starts there
+local TITLE_PLAIN = { 0.17, 0.22 }  -- a column of the frame with only red in it
+local TITLE_ICON = 0.19        -- the margin around the icon, part of the size
+local ICON_CROP = { 0.08, 0.92, 0.08, 0.92 }
+
+local function HasAtlas(name)
+    return C_Texture ~= nil and C_Texture.GetAtlasInfo ~= nil and C_Texture.GetAtlasInfo(name) ~= nil
+end
+
+function UI.TitleButton(parent, close, icon, title, line, onClick)
+    local size = close and close.GetWidth and close:GetWidth() or 0
+    size = size > 0 and size or TITLE_SIZE
+    local button = CreateFrame("Button", nil, parent)
+    button:SetSize(size, size)
+    if close and close.GetFrameLevel then
+        button:SetFrameLevel(close:GetFrameLevel())
+    end
+    local native = HasAtlas(TITLE_FRAME)
+    local rim = math.floor(size * TITLE_RIM + 0.5)
+    local margin = native and math.floor(size * TITLE_ICON + 0.5) or 1
+    button.Frame = button:CreateTexture(nil, "BACKGROUND")
+    button.Frame:SetAllPoints()
+    if native then
+        button.Frame:SetAtlas(TITLE_FRAME)
+        button.Fill = button:CreateTexture(nil, "BORDER")
+        button.Fill:SetPoint("TOPLEFT", rim, -rim)
+        button.Fill:SetPoint("BOTTOMRIGHT", -rim, rim)
+    else
+        -- A thin dark border, should the game lack its red button.
+        button.Frame:SetColorTexture(0, 0, 0, 1)
+    end
+    local function Fill(atlas)
+        local info = button.Fill and C_Texture.GetAtlasInfo(atlas)
+        local file = info and (info.file or info.filename)
+        if not file then
+            return
+        end
+        local du, dv = info.rightTexCoord - info.leftTexCoord, info.bottomTexCoord - info.topTexCoord
+        button.Fill:SetTexture(file)
+        button.Fill:SetTexCoord(info.leftTexCoord + du * TITLE_PLAIN[1], info.leftTexCoord + du * TITLE_PLAIN[2],
+            info.topTexCoord + dv * TITLE_RIM, info.bottomTexCoord - dv * TITLE_RIM)
+    end
+    Fill(TITLE_FRAME)
+    button.Icon = button:CreateTexture(nil, "ARTWORK")
+    button.Icon:SetTexture(icon)
+    button.Icon:SetTexCoord(unpack(ICON_CROP))
+    local function PlaceIcon(offset)
+        button.Icon:ClearAllPoints()
+        button.Icon:SetPoint("TOPLEFT", margin + offset, -margin - offset)
+        button.Icon:SetPoint("BOTTOMRIGHT", -margin + offset, margin - offset)
+    end
+    PlaceIcon(0)
+    local highlight = button:CreateTexture(nil, "HIGHLIGHT")
+    highlight:SetAllPoints()
+    if native and HasAtlas(TITLE_HIGHLIGHT) then
+        highlight:SetAtlas(TITLE_HIGHLIGHT)
+    else
+        highlight:SetTexture("Interface\\Buttons\\ButtonHilight-Square")
+    end
+    highlight:SetBlendMode("ADD")
+    -- Pressed: the frame's pressed look, and the icon a pixel down and right.
+    local pressed = native and HasAtlas(TITLE_PRESSED)
+    button:SetScript("OnMouseDown", function()
+        if pressed then
+            button.Frame:SetAtlas(TITLE_PRESSED)
+            Fill(TITLE_PRESSED)
+        end
+        PlaceIcon(1)
+    end)
+    button:SetScript("OnMouseUp", function()
+        if pressed then
+            button.Frame:SetAtlas(TITLE_FRAME)
+            Fill(TITLE_FRAME)
+        end
+        PlaceIcon(0)
+    end)
+    button:SetScript("OnClick", onClick)
+    button:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+        GameTooltip:SetText(title)
+        GameTooltip:AddLine(line, 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    button:SetScript("OnLeave", GameTooltip_Hide)
+    button:ClearAllPoints()
+    if close then
+        button:SetPoint("RIGHT", close, "LEFT", -2, 0)
+    else
+        button:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -30, -4)
+    end
+    return button
+end
+
 -- Blizzard's notification mark, as its Roster tab shows it for applicants:
 -- centred on parent's top right corner (moved by x, y), on a frame of its
 -- own, over parent. At the atlas's own size. Hidden at first.

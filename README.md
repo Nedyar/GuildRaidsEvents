@@ -9,6 +9,9 @@ linked to the game's calendar.
   soonest first, and those of the last week. Each row shows when the event
   is, its type and organizer, how many go in each role (signed up or
   confirmed: not those tentative, on standby or out), and your answer.
+  **Calendar**, above it on the right (in an event's view too), opens or
+  closes the game's calendar; and the calendar's window has a button with
+  the tab's icon, beside its close button, that opens the tab.
 - **An event's view**: click a row. Its sign-ups show in three columns, tanks,
   healers and damage, each name in its class colour, with its state
   (in the game calendar's colours: signed up and confirmed in green, standby

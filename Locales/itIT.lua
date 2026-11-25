@@ -131,5 +131,8 @@ ns.RegisterLocale("itIT", function(L)
     L["Remove sign-up"] = "Rimuovi iscrizione"
     L["Not signed up"] = "Non iscritto"
     L["Takes your sign-up back: you are a moderator no more, as in the game's calendar."] = "Rimuove la tua iscrizione: non sei più moderatore, come nel calendario del gioco."
-    L["Wait for the event to show again in your calendar (about an hour after removing your sign-up, or when you log in again)."] = "Attendi che l'evento ricompaia nel tuo calendario (circa un'ora dopo aver rimosso la tua iscrizione, o quando rientri nel gioco)."
+    L["Wait for the event to show again in your calendar (logging out and back in usually does it; /reload is not enough)."] = "Attendi che l'evento ricompaia nel tuo calendario (di solito basta disconnettersi e riconnettersi; /reload non basta)."
+    L["Calendar"] = "Calendario"
+    L["Opens or closes the game's calendar."] = "Apre o chiude il calendario del gioco."
+    L["The guild's raids and events, in the guild window."] = "Le incursioni e gli eventi della gilda, nella finestra della gilda."
 end)

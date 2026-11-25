@@ -2,6 +2,8 @@
 -- own side tabs (Chat, Roster, Guild Info...). Its subtabs list the
 -- upcoming events and those of the last week (EventList.lua); a click on
 -- one opens it (EventView.lua). Under the list: New event (EventForm.lua).
+-- Above it, on the right: Calendar, which opens the game's calendar; and
+-- on the calendar's window, a button that opens this tab.
 --
 -- It only hooks and reads Blizzard's frames. It never changes the guild
 -- window's display mode, which would taint the window. Instead, it makes
@@ -302,7 +304,46 @@ local function CreatePage()
     page.Hint:SetPoint("LEFT", page.Content, "BOTTOMLEFT", 4, -15)
     page.Hint:SetPoint("RIGHT", page.New, "LEFT", -8, 0)
     page.Hint:SetJustifyH("LEFT")
+    -- Above the inset, on the right (the subtabs are on the left), in the
+    -- lists and in an event's view: the game's calendar, opened or closed
+    -- in the game's own way, by the player's click only.
+    page.Calendar = UI.Button(page, L["Calendar"], function()
+        if type(ToggleCalendar) == "function" then
+            ToggleCalendar()
+        end
+    end)
+    page.Calendar:SetPoint("BOTTOMRIGHT", page.Content, "TOPRIGHT", -2, 4)
+    UI.SetTooltip(page.Calendar, L["Calendar"], L["Opens or closes the game's calendar."])
     page:Hide()
+end
+
+-- Opens the guild window (as its key does), on our tab once the window has
+-- laid out its tabs (ours shows only on the guild's own view).
+function GuildTab.OpenTab()
+    if not (communities and communities:IsShown()) and type(ToggleGuildFrame) == "function" then
+        ToggleGuildFrame()
+    end
+    C_Timer.After(0, function()
+        if tab and tab:IsShown() and page then
+            ShowPage()
+        end
+    end)
+end
+
+-- On the game's calendar window, left of its close button, a button with
+-- our tab's icon that opens it (UI.TitleButton). Once the calendar is
+-- loaded (when first opened).
+local calendarButton
+
+function GuildTab.SetupCalendar()
+    local calendar = CalendarFrame
+    if calendarButton or not (calendar and calendar.CreateTexture) then
+        return
+    end
+    local close = calendar.CloseButton or CalendarCloseButton
+    calendarButton = UI.TitleButton(calendar, close, ICON, L["Raids & Events"],
+        L["The guild's raids and events, in the guild window."], GuildTab.OpenTab)
+    GuildTab.calendarButton = calendarButton
 end
 
 -- The tab ---------------------------------------------------------------------------
@@ -420,4 +461,5 @@ function GuildTab.Init()
     end)
     UpdateBadge()
     EventUtil.ContinueOnAddOnLoaded("Blizzard_Communities", Setup)
+    EventUtil.ContinueOnAddOnLoaded("Blizzard_Calendar", GuildTab.SetupCalendar)
 end

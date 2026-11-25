@@ -131,5 +131,8 @@ ns.RegisterLocale("koKR", function(L)
     L["Remove sign-up"] = "신청 취소"
     L["Not signed up"] = "신청 안 함"
     L["Takes your sign-up back: you are a moderator no more, as in the game's calendar."] = "신청을 취소합니다. 게임 달력처럼 더 이상 운영자가 아닙니다."
-    L["Wait for the event to show again in your calendar (about an hour after removing your sign-up, or when you log in again)."] = "일정이 달력에 다시 나타날 때까지 기다리세요(참가 신청 취소 후 약 1시간, 또는 다시 접속하면)."
+    L["Wait for the event to show again in your calendar (logging out and back in usually does it; /reload is not enough)."] = "일정이 달력에 다시 나타날 때까지 기다리세요 (보통 접속을 종료했다가 다시 접속하면 됩니다. /reload로는 안 됩니다)."
+    L["Calendar"] = "달력"
+    L["Opens or closes the game's calendar."] = "게임 달력을 열거나 닫습니다."
+    L["The guild's raids and events, in the guild window."] = "길드 창의 길드 공격대와 일정."
 end)

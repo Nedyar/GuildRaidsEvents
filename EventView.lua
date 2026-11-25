@@ -703,7 +703,7 @@ function EventView.UpdateControls(signUps)
             -- Taken back a moment ago: not in the game's calendar yet.
             reason = L["Syncing the calendar..."]
         elseif not reason and ns.Calendar.HiddenFromMe(event) then
-            reason = L["Wait for the event to show again in your calendar (about an hour after removing your sign-up, or when you log in again)."]
+            reason = L["Wait for the event to show again in your calendar (logging out and back in usually does it; /reload is not enough)."]
         end
         for _, button in ipairs({ view.SignUp, view.Tentative }) do
             button:SetEnabled(reason == nil)

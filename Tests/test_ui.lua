@@ -299,7 +299,7 @@ H.check(member.ns.Calendar.HiddenFromMe(member.ns.Events.Get(key)), "the event l
 member.ns.EventView.Refresh()
 H.check(view.SignUp:IsShown() and not view.SignUp:IsEnabled() and not view.Tentative:IsEnabled() and not view.Remove:IsShown(),
     "so they see Sign up and Tentative again, but cannot answer yet")
-H.eq(view.SignUp.reason, "Wait for the event to show again in your calendar (about an hour after removing your sign-up, or when you log in again).", "and the buttons say to wait")
+H.eq(view.SignUp.reason, "Wait for the event to show again in your calendar (logging out and back in usually does it; /reload is not enough).", "and the buttons say to wait")
 world:ShowHidden()
 world:RunFor(15)
 H.check(view.SignUp:IsEnabled() and view.Tentative:IsEnabled(), "back in their calendar: they answer again")
@@ -846,6 +846,33 @@ communities:SetDisplayMode("ROSTER")
 H.check(not page:IsShown() and not tab:GetChecked(), "one of Blizzard's tabs closes the panel")
 H.eq(communities.MemberList:GetAlpha(), 1, "and Blizzard's view shows again")
 
+H.section("UI: the game's calendar, both ways")
+H.Click(tab)
+local toggled = 0
+organizer.env.ToggleCalendar = function()
+    toggled = toggled + 1
+end
+H.check(page.Calendar:IsShown() and page.Calendar._point[1] == "BOTTOMRIGHT" and page.Calendar._point[3] == "TOPRIGHT",
+    "Calendar, above the list on the right")
+H.Click(page.Calendar)
+H.eq(toggled, 1, "opens the game's calendar")
+ns.EventView.Open(ns.Events.List("upcoming")[1].key)
+H.check(page.Calendar:IsShown(), "there in an event's view too")
+ns.EventView.Close()
+communities:SetDisplayMode("ROSTER")
+organizer.env.CalendarFrame = H.NewObject(organizer, "Frame")
+organizer.env.CalendarFrame.CloseButton = H.NewObject(organizer, "Button")
+ns.GuildTab.SetupCalendar()
+local toTab = ns.GuildTab.calendarButton
+H.check(toTab ~= nil and toTab._point[2] == organizer.env.CalendarFrame.CloseButton,
+    "the calendar's window has a button left of its close button")
+H.Click(toTab)
+world:RunFor(1)
+H.check(page:IsShown() and tab:GetChecked(), "which opens the guild window on our tab")
+organizer.env.CalendarFrame = nil
+communities:SetDisplayMode("ROSTER")
+Errors("the calendar's buttons")
+
 H.section("UI: options")
 local main = ns.Options.Page("main")
 H.check(main ~= nil, "the options' main page")
@@ -874,7 +901,8 @@ for _, file in ipairs(H.FILES) do
         file .. ": no HookScript on the guild window")
     H.check(not code:find(":SetDisplayMode%("), file .. ": never changes the guild window's display mode")
     H.check(not code:find("Menu.ModifyMenu", 1, true), file .. ": no changes to Blizzard's menus")
-    H.check(not code:find("CalendarFrame:Show", 1, true) and not code:find("ToggleCalendar", 1, true)
-        and not code:find("Calendar_Show", 1, true), file .. ": never opens Blizzard's calendar window")
+    H.check(not code:find("CalendarFrame:Show", 1, true) and not code:find("Calendar_Show", 1, true)
+        and (not code:find("ToggleCalendar", 1, true) or file == "GuildTab.lua"),
+        file .. ": never opens Blizzard's calendar window but from the Calendar button")
     H.check(not code:find("MemberList", 1, true) or file == "GuildTab.lua", file .. ": does not touch the member list")
 end

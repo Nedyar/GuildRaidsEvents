@@ -131,5 +131,8 @@ ns.RegisterLocale("ptBR", function(L)
     L["Remove sign-up"] = "Remover inscrição"
     L["Not signed up"] = "Não inscrito"
     L["Takes your sign-up back: you are a moderator no more, as in the game's calendar."] = "Remove sua inscrição: você deixa de ser moderador, como no calendário do jogo."
-    L["Wait for the event to show again in your calendar (about an hour after removing your sign-up, or when you log in again)."] = "Espere o evento aparecer de novo no seu calendário (cerca de uma hora depois de remover sua inscrição, ou ao entrar de novo no jogo)."
+    L["Wait for the event to show again in your calendar (logging out and back in usually does it; /reload is not enough)."] = "Espere o evento voltar a aparecer no seu calendário (geralmente sair e entrar de novo resolve; /reload não basta)."
+    L["Calendar"] = "Calendário"
+    L["Opens or closes the game's calendar."] = "Abre ou fecha o calendário do jogo."
+    L["The guild's raids and events, in the guild window."] = "As raides e eventos da guilda, na janela da guilda."
 end)

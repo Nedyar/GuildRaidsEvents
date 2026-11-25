@@ -131,5 +131,8 @@ ns.RegisterLocale("zhCN", function(L)
     L["Remove sign-up"] = "取消报名"
     L["Not signed up"] = "未报名"
     L["Takes your sign-up back: you are a moderator no more, as in the game's calendar."] = "取消你的报名：你将不再是管理员，与游戏日历一致。"
-    L["Wait for the event to show again in your calendar (about an hour after removing your sign-up, or when you log in again)."] = "请等待活动重新出现在你的日历中（取消报名后约一小时，或重新登录后）。"
+    L["Wait for the event to show again in your calendar (logging out and back in usually does it; /reload is not enough)."] = "请等待活动重新出现在你的日历中（通常退出并重新登录即可；/reload 不够）。"
+    L["Calendar"] = "日历"
+    L["Opens or closes the game's calendar."] = "打开或关闭游戏日历。"
+    L["The guild's raids and events, in the guild window."] = "公会窗口中的公会团队与活动。"
 end)
