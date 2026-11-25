@@ -695,6 +695,20 @@ function Events.Answer(key, st, role, note)
     return true
 end
 
+-- Changes the note of the player's own answer, nothing else: its time,
+-- and so the order they signed up in and how it stands against the
+-- statuses given, stays. Whether it did.
+function Events.SetNote(key, note)
+    local record = Own()
+    local answer = record and record.su and record.su[key]
+    if not answer or not Events.Get(key) then
+        return false
+    end
+    answer.no = ns.Data.CleanNote(note)
+    Touch(record, "signUps")
+    return true
+end
+
 -- Gives a sign-up a status (Events.NONE takes it back), as someone who may
 -- manage the event (its organizer's too, as in the game's calendar).
 function Events.SetStatus(key, guid, st)

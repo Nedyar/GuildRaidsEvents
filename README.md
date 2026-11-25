@@ -15,23 +15,23 @@ linked to the game's calendar.
   and tentative in orange): confirmed
   first, then signed up, tentative and on standby; each column's count, as
   the rows', counts those signed up or confirmed. Point at a name for its
-  note. Those left out are listed under the columns. Your own role you also
-  change by dragging your name to another column, or from its menu (a
-  right-click on it). Choose your role (at
+  note. Those left out are listed under the columns.
+  Under the columns, only signing up: not signed up, choose your role (at
   first the one your class and specialization stand for, the talent tree
   with the most points of your active spec group, a Feral druid tanking;
-  then the one you chose last with that specialization), write a short
-  note if you like, and answer **Signed up** or
-  **Tentative**, or **Remove sign-up**: the same answers as in the game's
-  calendar, by its rules: signed up in any way, you only remove your
-  sign-up (your role and note you change at any time), and the event then
-  leaves your calendar for about an hour (or until you log in again); you
-  answer again once it is back.
-  The buttons say so when they are off. The organizer, whom the game keeps in their event, picks their
-  own state instead: **Confirmed**, **Standby**, **Tentative** or **Out**;
-  a moderator, the same (out, they stay in the event's list, as in the
-  game), or **Remove sign-up** (which ends their moderation, as in the
-  game).
+  then the one you chose last with that specialization) and write a short
+  note if you like, on the left, and answer **Signed up** or **Tentative**,
+  on the right; signed up in any way (a moderator too), only **Remove
+  sign-up**, in the middle, as the game's calendar lets you: the event then
+  leaves your calendar for about an hour (or until you log in again), and
+  you sign up again once it is back (a moderator taken out is one no
+  more). The organizer, whom the game keeps in their event, has nothing
+  there. The buttons say so when they are off.
+  Once signed up, a right-click on your own name gives its menu: your
+  role, your note (**Edit note**) and, for the organizer and the
+  moderators, your status (**Confirmed**, **Standby**, **Tentative** or
+  **Out**; out, you stay in the event's list, as in the game). Your role
+  you also change by dragging your name to another column.
 - **Creating an event**: **New event**, under the list, for those whose
   guild rank may add guild events to the game's calendar. Give it a title,
   a type (raid, dungeon, PvP, meeting, other) and, for a raid or a dungeon,

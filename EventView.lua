@@ -3,14 +3,15 @@
 -- (each name in its class colour, and its state in the game calendar's
 -- colour; a note or a sign-up made outside the game in its tooltip),
 -- confirmed first, then signed up, tentative and on standby;
--- under them, those left out; and the
--- player's own answer: their role, a note, and Sign up, Tentative or Remove
--- sign-up, as the game's calendar offers them. Those who may manage the
+-- under them, those left out; and, at the bottom, only signing up (a role,
+-- a note, Sign up or Tentative) or Remove sign-up, as the game's calendar
+-- offers them, and nothing for the organizer. Those who may manage the
 -- event (Rights.lua) also change it (EventForm.lua), delete it (so may
--- officers), and give each sign-up one of the game's statuses and a role
--- from its menu (a right-click on its name, in a column or in those
--- lines), or a role by dragging its name to another column; any member
--- changes their own role that way.
+-- officers), and give each sign-up (their own too) one of the game's
+-- statuses and a role from its menu (a right-click on its name, in a
+-- column or in those lines), or a role by dragging its name to another
+-- column; any member changes their own role that way, and their note
+-- from their name's menu.
 local _, ns = ...
 local L = ns.L
 
@@ -30,6 +31,7 @@ local MODERATOR_ICON = "|TInterface\\GroupFrame\\UI-Group-AssistantIcon:12:12|t 
 
 local view       -- the frame
 local shownKey   -- the event shown
+local EditNote   -- opens the note's window (below)
 
 -- The role for the event shown: the player's sign-up's, or the one picked
 -- in the menu; else their default role (Roles.lua).
@@ -150,6 +152,13 @@ local function NameMenu(owner, signUp)
                 return (signUp.ro or Events.DAMAGE) == role
             end, function()
                 ChangeRole(signUp, role)
+            end)
+        end
+        -- The player's own note (not one brought in from outside the game).
+        if signUp.guid == ns.playerGUID and not signUp.external then
+            root:CreateDivider()
+            root:CreateButton(L["Edit note"], function()
+                EditNote(event.key)
             end)
         end
         -- Moderators, as the game's calendar names them: anyone in its list
@@ -311,21 +320,85 @@ local function NameText(signUp)
     return name .. mark
 end
 
--- The player gives themselves a state with one of their buttons, with the
--- role and note chosen: a member answers; the organizer (the event's
--- creator, whom the game keeps in it) and its moderators answer and set
--- their own status, as the game's calendar lets them.
+-- The player signs up (as tentative too), with the role and note chosen,
+-- or removes their sign-up.
 local function SetOwnState(state)
     local event = Events.Get(shownKey)
     if not event then
         return
     end
     local note = strtrim(view.Note:GetText() or "")
-    States.SetMine(event.key, state, selectedRole or Roles.Default(), note, ns.Rights.MayIManage(event))
+    States.SetMine(event.key, state, selectedRole or Roles.Default(), note, false)
+end
+
+-- The note of the player's own sign-up, changed from its name's menu: a
+-- small window over the view.
+local noteEditor
+
+local function SaveNote()
+    if noteEditor.key then
+        Events.SetNote(noteEditor.key, strtrim(noteEditor.Box:GetText() or ""))
+    end
+    noteEditor:Hide()
+end
+
+function EditNote(key)
+    local event = Events.Get(key)
+    local mine = event and Events.Mine(event)
+    if not mine then
+        return
+    end
+    if not noteEditor then
+        noteEditor = CreateFrame("Frame", nil, view, "TooltipBackdropTemplate")
+        noteEditor:SetSize(260, 84)
+        noteEditor:SetPoint("CENTER")
+        -- Over everything in the view, and not see-through.
+        noteEditor:SetFrameStrata("FULLSCREEN_DIALOG")
+        noteEditor:EnableMouse(true)
+        local background = noteEditor:CreateTexture(nil, "BACKGROUND", nil, -8)
+        background:SetPoint("TOPLEFT", 3, -3)
+        background:SetPoint("BOTTOMRIGHT", -3, 3)
+        background:SetColorTexture(0.06, 0.06, 0.08, 1)
+        noteEditor.Title = noteEditor:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+        noteEditor.Title:SetPoint("TOPLEFT", 12, -10)
+        noteEditor.Title:SetText(L["Note"])
+        noteEditor.Box = CreateFrame("EditBox", nil, noteEditor, "InputBoxTemplate")
+        noteEditor.Box:SetSize(228, 20)
+        noteEditor.Box:SetPoint("TOPLEFT", 18, -28)
+        noteEditor.Box:SetAutoFocus(false)
+        noteEditor.Box:SetMaxLetters(NOTE_LETTERS)
+        noteEditor.Box:SetScript("OnEnterPressed", SaveNote)
+        noteEditor.Box:SetScript("OnEscapePressed", function()
+            noteEditor:Hide()
+        end)
+        noteEditor.Cancel = UI.Button(noteEditor, CANCEL or L["Cancel"], function()
+            noteEditor:Hide()
+        end)
+        noteEditor.Cancel:SetPoint("BOTTOMRIGHT", -8, 8)
+        noteEditor.Save = UI.Button(noteEditor, L["Save"], SaveNote)
+        noteEditor.Save:SetPoint("RIGHT", noteEditor.Cancel, "LEFT", -4, 0)
+    end
+    noteEditor.key = key
+    noteEditor.Box:SetText(mine.no or "")
+    noteEditor:Show()
+    noteEditor.Box:SetFocus()
+    noteEditor.Box:HighlightText()
+end
+
+local function CloseNoteEditor()
+    if noteEditor then
+        noteEditor.key = nil
+        noteEditor:Hide()
+    end
 end
 
 local function CreateControls()
-    -- The player's own answer, under the columns.
+    -- Under the columns, only to sign up or remove a sign-up: a member not
+    -- signed up picks their role and a note on the left, and signs up or
+    -- signs up as tentative on the right; one signed up (a moderator too)
+    -- removes their sign-up, in the middle; the organizer, whom the game
+    -- keeps in their event, has nothing there. Statuses, roles and notes
+    -- change from each name's menu (a right-click).
     view.RoleLabel = view:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     view.RoleLabel:SetPoint("BOTTOMLEFT", 4, 34)
     view.RoleLabel:SetText(L["Your role"])
@@ -353,49 +426,24 @@ local function CreateControls()
     view.Note:SetMaxLetters(NOTE_LETTERS)
     view.Note:SetScript("OnEnterPressed", view.Note.ClearFocus)
     view.Note:SetScript("OnEscapePressed", view.Note.ClearFocus)
-    view.Note:SetScript("OnTextChanged", function()
-        EventView.UpdateControls()
-    end)
-    -- One button per state the player can give themselves, as the game's
-    -- calendar offers them: a member signs up, signs up as tentative or
-    -- removes their sign-up; the organizer (the event's creator, whom the
-    -- game keeps in it) is confirmed, on standby, tentative or out; a
-    -- moderator too (out, they stay in its list, as in the game's
-    -- calendar), or removes their sign-up (and their moderation with it).
     local function StateButton(state, text)
-        return { state = state, button = UI.Button(view, text or UI.StateName(state), function()
+        local button = UI.Button(view, text or UI.StateName(state), function()
             SetOwnState(state)
-        end) }
+        end)
+        button:SetWidth(math.max(button:GetTextWidth() + 20, 90))
+        UI.SetTooltip(button, function(self)
+            return self:GetText()
+        end, function(self)
+            return self.reason
+        end)
+        return button
     end
-    view.States = {
-        member = { StateButton("signed"), StateButton("tentative"), StateButton("none", L["Remove sign-up"]) },
-        organizer = {},
-        moderator = {},
-    }
-    for _, state in ipairs({ "confirmed", "standby", "tentative", "out" }) do
-        table.insert(view.States.organizer, StateButton(state))
-    end
-    for _, state in ipairs({ "confirmed", "standby", "tentative", "out" }) do
-        table.insert(view.States.moderator, StateButton(state))
-    end
-    table.insert(view.States.moderator, StateButton("none", L["Remove sign-up"]))
-    view.SignUp, view.Tentative, view.Remove = view.States.member[1].button, view.States.member[2].button,
-        view.States.member[3].button
-    view.Confirm, view.Standby, view.OwnTentative, view.Out = view.States.organizer[1].button,
-        view.States.organizer[2].button, view.States.organizer[3].button, view.States.organizer[4].button
-    view.Mine = view:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    view.Mine:SetPoint("BOTTOMLEFT", view.Note, "TOPRIGHT", 8, 7)
-    view.Mine:SetPoint("RIGHT", -4, 0)
-    view.Mine:SetJustifyH("LEFT")
-    for _, set in pairs(view.States) do
-        for _, item in ipairs(set) do
-            UI.SetTooltip(item.button, function(self)
-                return self:GetText()
-            end, function(self)
-                return self.reason
-            end)
-        end
-    end
+    view.Tentative = StateButton("tentative")
+    view.Tentative:SetPoint("BOTTOMRIGHT", -4, 7)
+    view.SignUp = StateButton("signed")
+    view.SignUp:SetPoint("RIGHT", view.Tentative, "LEFT", -4, 0)
+    view.Remove = StateButton("none", L["Remove sign-up"])
+    view.Remove:SetPoint("BOTTOM", 0, 7)
 end
 
 function EventView.Create(parent)
@@ -591,12 +639,10 @@ function EventView.Refresh()
     view.Role:GenerateMenu()
 end
 
--- The player's buttons and state line: a button is off while the player
--- already is in its state, with the role and note chosen. A member answers
--- as the game's calendar lets them: signed up in any way, they only remove
--- their sign-up (or change their role or note, which the calendar does not
--- have); the event then leaves their calendar for about an hour, and they
--- answer again once it is back.
+-- What shows under the columns (see CreateControls), and why a button is
+-- off. Signed up in any way, a member only removes their sign-up, as the
+-- game's calendar lets them; the event then leaves their calendar for
+-- about an hour, and they sign up again once it is back.
 function EventView.UpdateControls(signUps)
     local event = view and view:IsShown() and Events.Get(shownKey)
     if not event then
@@ -621,80 +667,34 @@ function EventView.UpdateControls(signUps)
     local deleting = ns.Calendar.Deleting(event.key)
     view.Delete:SetEnabled(not deleting)
     view.Delete.reason = deleting and L["Syncing the calendar..."] or L["Deletes this event, for everyone."]
-    -- The organizer and the moderators give themselves a status, as the
-    -- game's calendar lets them; members answer.
-    local moderator = not organizer and Events.IsModerator(event, ns.playerGUID)
-    local givesStatus = organizer or moderator
-    -- Why a button is off, whatever the player's state: the event is over;
-    -- it is locked (it takes no answers from members, nor their sign-ups
-    -- back; its creator still changes their own state, and a moderator
-    -- their status); the player is below its level.
-    local function Reason(item)
-        if not Events.IsUpcoming(event) then
-            return L["This event is over."]
-        elseif event.lk and not organizer and not (moderator and item.state ~= "none") then
-            return L["This event is locked: it takes no answers."]
-        elseif not UI.MeetsLevel(event) then
-            return L["This event is for level %d or higher."]:format(event.ml)
-        end
+    local signing = not organizer and state == "none"
+    local removing = not organizer and state ~= "none"
+    for _, widget in ipairs({ view.RoleLabel, view.Role, view.NoteLabel, view.Note, view.SignUp, view.Tentative }) do
+        widget:SetShown(signing)
     end
-    local role = selectedRole or Roles.Default()
-    local note = strtrim(view.Note:GetText() or "")
-    local same = mine ~= nil and mine.ro == role and (mine.no or "") == note
-    local hidden = not organizer and state == "none" and ns.Calendar.HiddenFromMe(event)
-    local shown = organizer and view.States.organizer or moderator and view.States.moderator or view.States.member
-    for _, set in pairs(view.States) do
-        for _, item in ipairs(set) do
-            item.button:SetShown(set == shown)
-        end
+    view.Remove:SetShown(removing)
+    -- Over, or locked (no answers from members, nor their sign-ups back).
+    local reason
+    if not Events.IsUpcoming(event) then
+        reason = L["This event is over."]
+    elseif event.lk then
+        reason = L["This event is locked: it takes no answers."]
     end
-    local last
-    for _, item in ipairs(shown) do
-        local button = item.button
-        button:ClearAllPoints()
-        if last then
-            button:SetPoint("LEFT", last, "RIGHT", 4, 0)
-        else
-            button:SetPoint("BOTTOMLEFT", view.Note, "BOTTOMRIGHT", 8, -1)
+    if signing then
+        if not reason and not UI.MeetsLevel(event) then
+            reason = L["This event is for level %d or higher."]:format(event.ml)
+        elseif not reason and ns.Calendar.HiddenFromMe(event) then
+            reason = L["Wait for the event to show again in your calendar (about an hour after removing your sign-up, or when you log in again)."]
         end
-        last = button
-        button:SetWidth(math.max(button:GetTextWidth() + 20, 70))
-        local current = state == item.state
-        if item.state == "signed" then
-            -- Signed up includes the statuses the organizer gives.
-            current = States.IsSignedUp(state)
-        end
-        local reason = Reason(item)
-        if item.state == "none" then
-            -- Removing: while there is a sign-up and the event is to come.
-            -- A moderator's sign-up taken back ends their moderation.
-            button:SetEnabled(reason == nil and state ~= "none")
-            button.reason = reason or (state == "none" and L["You are not signed up."])
-                or (moderator and L["Takes your sign-up back: you are a moderator no more, as in the game's calendar."])
-                or nil
-        elseif not givesStatus and state ~= "none" and (state == "out" or not current) then
-            -- Another answer: removing the sign-up first, and waiting.
-            button:SetEnabled(false)
-            button.reason = reason
-                or L["To change your answer, remove your sign-up and wait for the event to show again in your calendar (about an hour, or when you log in again)."]
-        elseif hidden then
-            button:SetEnabled(false)
-            button.reason = reason
-                or L["Wait for the event to show again in your calendar (about an hour after removing your sign-up, or when you log in again)."]
-        elseif current and (same or item.state == "out") then
-            button:SetEnabled(false)
-            -- Signed up in another way (a status given): which.
-            button.reason = item.state == state and L["You are already in this state."]
-                or L["You are already signed up: %s."]:format(UI.StateName(state))
-        else
+        for _, button in ipairs({ view.SignUp, view.Tentative }) do
             button:SetEnabled(reason == nil)
             button.reason = reason
         end
-    end
-    if state == "none" then
-        view.Mine:SetText(L["Your status: %s."]:format(UI.StateText(mine)))
-    else
-        view.Mine:SetText(L["Your status: %s, as %s."]:format(UI.StateText(mine), UI.RoleName(mine.ro)))
+    elseif removing then
+        -- A moderator's sign-up taken back ends their moderation.
+        view.Remove:SetEnabled(reason == nil)
+        view.Remove.reason = reason or (Events.IsModerator(event, ns.playerGUID)
+            and L["Takes your sign-up back: you are a moderator no more, as in the game's calendar."]) or nil
     end
 end
 
@@ -707,6 +707,7 @@ function EventView.Open(key)
         return
     end
     if shownKey ~= key then
+        CloseNoteEditor()
         selectedRole = nil
         local mine = Events.Mine(event)
         view.Note:SetText(mine and mine.no or "")
@@ -723,6 +724,7 @@ end
 
 function EventView.Close()
     shownKey = nil
+    CloseNoteEditor()
     if view then
         view:Hide()
     end
@@ -731,4 +733,9 @@ end
 
 function EventView.Shown()
     return view ~= nil and view:IsShown() and shownKey or nil
+end
+
+-- The note's window (EditNote), for the tests.
+function EventView.NoteEditor()
+    return noteEditor
 end

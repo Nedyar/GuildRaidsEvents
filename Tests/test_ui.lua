@@ -97,9 +97,10 @@ H.check(not view.Edit:IsShown() and not view.Delete:IsShown(), "a member does no
 member.level = 40
 member.ns.EventView.Refresh()
 H.check(not view.SignUp:IsEnabled() and view.SignUp.reason ~= nil, "below its minimum level, the member cannot sign up")
-H.check(not view.Remove:IsEnabled(), "and, not signed up, has no sign-up to remove")
-H.check(view.SignUp:IsShown() and view.Tentative:IsShown() and view.Remove:IsShown() and not view.Confirm:IsShown(),
-    "a member's buttons are the game's: sign up, tentative, remove the sign-up")
+H.check(view.SignUp:IsShown() and view.Tentative:IsShown() and view.Role:IsShown() and view.Note:IsShown()
+    and not view.Remove:IsShown(), "not signed up: their role, a note, Sign up and Tentative, nothing else")
+H.check(view.SignUp._point[2] == view.Tentative and view.Tentative._point[1] == "BOTTOMRIGHT",
+    "the buttons on the right")
 member.level = 60
 member.ns.EventView.Refresh()
 H.check(view.SignUp:IsEnabled(), "at the level, they can")
@@ -116,7 +117,9 @@ H.check(view.Columns[2].Names[1]:IsShown() and view.Columns[2].Names[1].Text:Get
     "the member shows in the healers' column")
 H.check(view.Columns[2].Names[1].Text:GetText():find("(Signed up)", 1, true) ~= nil,
     "with their state by the name, signed up too, as every other state")
-H.check(view.Mine:GetText():find("Healer", 1, true) ~= nil, "and their answer under it")
+H.check(view.Remove:IsShown() and not view.SignUp:IsShown() and not view.Role:IsShown() and not view.Note:IsShown(),
+    "signed up: only Remove sign-up under the columns")
+H.check(view.Remove._point[1] == "BOTTOM", "in the middle")
 local nameButton = view.Columns[2].Names[1]
 nameButton:GetScript("OnEnter")(nameButton)
 local tipLines = member.env.GameTooltip._lines
@@ -179,9 +182,6 @@ H.MenuEntry(menu, "Confirmed").setSelected()
 world:RunFor(30)
 local seen = member.ns.Events.Mine(member.ns.Events.Get(key))
 H.eq(seen.status, 1, "the member is confirmed, for everyone")
-member.ns.EventView.Open(key)
-H.eq(view.SignUp.reason, "You are already signed up: Confirmed.", "their Sign up, off, says how they are signed up")
-member.ns.EventView.Close()
 H.Click(healer, "RightButton")
 menu = organizer.contextMenu
 H.check(H.MenuEntry(menu, "Set moderator") ~= nil, "the menu also names a moderator, as the game's calendar does")
@@ -210,10 +210,8 @@ H.check(not inColumns and orgView.Others:GetText():find("|Hgre:" .. member.guid,
     "left out: not among those who go, but in the Out line, as a link")
 world:RunFor(30)
 member.ns.EventView.Open(key)
-H.check(not view.SignUp:IsEnabled() and not view.Tentative:IsEnabled() and view.Remove:IsEnabled(),
-    "the member left out cannot sign up again nor answer tentative (as in the game), only remove it")
-H.eq(view.Tentative.reason, "To change your answer, remove your sign-up and wait for the event to show again in your calendar (about an hour, or when you log in again).", "and the buttons say so")
-H.check(view.Mine:GetText():find("Out", 1, true) ~= nil, "and reads Out")
+H.check(not view.SignUp:IsShown() and view.Remove:IsShown() and view.Remove:IsEnabled(),
+    "the member left out stays in its list, as in the game: they only remove their sign-up")
 organizer.contextMenu = nil
 orgView._scripts.OnHyperlinkClick(orgView, "gre:" .. member.guid, "Member Name", "LeftButton")
 H.eq(organizer.contextMenu, nil, "a left click on the name there opens nothing")
@@ -226,9 +224,25 @@ H.eq(member.ns.Events.Mine(member.ns.Events.Get(key)).status, 1, "confirmed agai
 local function MineOf(client)
     return client.ns.Events.Mine(client.ns.Events.Get(key))
 end
-H.Click(orgView.OwnTentative)
-world:RunFor(2)
-ns.EventView.Refresh()
+-- The organizer gives themselves a status from their own name's menu (in a
+-- column, or in the Out line).
+local function OwnStatus(status)
+    ns.EventView.Refresh()
+    organizer.contextMenu = nil
+    for _, column in ipairs(orgView.Columns) do
+        for _, name in ipairs(column.Names) do
+            if name:IsShown() and name.signUp and name.signUp.guid == organizer.guid then
+                H.Click(name, "RightButton")
+            end
+        end
+    end
+    if not organizer.contextMenu then
+        orgView._scripts.OnHyperlinkClick(orgView, "gre:" .. organizer.guid, "Organizer Name", "RightButton")
+    end
+    H.MenuEntry(organizer.contextMenu, status).setSelected()
+    world:RunFor(2)
+    ns.EventView.Refresh()
+end
 local function DamageName(guid)
     for _, name in ipairs(orgView.Columns[3].Names) do
         if name:IsShown() and name.signUp and name.signUp.guid == guid then
@@ -236,30 +250,18 @@ local function DamageName(guid)
         end
     end
 end
+ns.EventView.Refresh()
+H.check(not orgView.SignUp:IsShown() and not orgView.Tentative:IsShown() and not orgView.Remove:IsShown()
+    and not orgView.Role:IsShown() and not orgView.Note:IsShown(),
+    "nothing under the columns for the organizer, whom the game keeps in their event")
+OwnStatus("Tentative")
 H.check(ns.States.IsTentative(MineOf(organizer)) and DamageName(organizer.guid) ~= nil,
-    "the organizer answers Tentative: still in their role's column, as tentative")
-H.check(DamageName(organizer.guid).Text:GetText():find("(Tentative)", 1, true) ~= nil,
-    "with their state by the name, though it is their answer and not a status given")
-organizer.contextMenu = nil
-H.Click(DamageName(organizer.guid), "RightButton")
-H.MenuEntry(organizer.contextMenu, "Confirmed").setSelected()
-world:RunFor(2)
-ns.EventView.Refresh()
+    "Tentative from their own name's menu: still in their role's column, as tentative")
+H.check(DamageName(organizer.guid).Text:GetText():find("(Tentative)", 1, true) ~= nil, "with their state by the name")
+OwnStatus("Confirmed")
 local own = MineOf(organizer)
-H.check(own.st == 1 and own.status == 1 and ns.States.Goes(own), "then Confirmed from the menu: signed up and confirmed")
-local inDamage = false
-for _, name in ipairs(orgView.Columns[3].Names) do
-    inDamage = inDamage or (name:IsShown() and name.signUp and name.signUp.guid == organizer.guid)
-end
-H.check(inDamage, "back in their role's column")
-H.Click(orgView.OwnTentative)
-world:RunFor(2)
-H.check(ns.States.IsTentative(MineOf(organizer)), "answering Tentative again after it makes them tentative")
-ns.EventView.Refresh()
-organizer.contextMenu = nil
-H.Click(DamageName(organizer.guid), "RightButton")
-H.MenuEntry(organizer.contextMenu, "Confirmed").setSelected()
-world:RunFor(2)
+H.check(own.st == 1 and own.status == 1 and ns.States.Goes(own), "then Confirmed: signed up and confirmed")
+H.check(DamageName(organizer.guid) ~= nil, "back in their role's column")
 organizer.contextMenu = nil
 for _, name in ipairs(orgView.Columns[2].Names) do
     if name:IsShown() and name.signUp and name.signUp.guid == member.guid then
@@ -270,14 +272,15 @@ H.MenuEntry(organizer.contextMenu, "Tentative").setSelected()
 world:RunFor(30)
 H.check(ns.States.IsTentative(MineOf(member)), "a member made tentative by the organizer is tentative for everyone")
 member.ns.EventView.Open(key)
-H.check(not view.SignUp:IsEnabled() and not view.Tentative:IsEnabled() and view.Remove:IsEnabled(),
+H.check(view.Remove:IsShown() and view.Remove:IsEnabled() and not view.SignUp:IsShown(),
     "made tentative, the member only removes their sign-up, as in the game")
-H.eq(view.SignUp.reason, "To change your answer, remove your sign-up and wait for the event to show again in your calendar (about an hour, or when you log in again).", "and Sign up says how to change it")
 H.Click(view.Remove)
 world:RunFor(30)
 H.eq(MineOf(member), nil, "removed")
 H.check(member.ns.Calendar.HiddenFromMe(member.ns.Events.Get(key)), "the event left the member's calendar, as the game does")
-H.check(not view.SignUp:IsEnabled() and not view.Tentative:IsEnabled(), "so they cannot answer yet")
+member.ns.EventView.Refresh()
+H.check(view.SignUp:IsShown() and not view.SignUp:IsEnabled() and not view.Tentative:IsEnabled() and not view.Remove:IsShown(),
+    "so they see Sign up and Tentative again, but cannot answer yet")
 H.eq(view.SignUp.reason, "Wait for the event to show again in your calendar (about an hour after removing your sign-up, or when you log in again).", "and the buttons say to wait")
 world:ShowHidden()
 world:RunFor(15)
@@ -286,29 +289,16 @@ H.Click(view.SignUp)
 world:RunFor(30)
 H.check(MineOf(member).st == 1 and ns.States.Goes(MineOf(member)) and (MineOf(member).status == 0 or MineOf(member).auto),
     "signing up again after it: signed up, with no status of the organizer's, as in the game")
-H.check(orgView.Confirm:IsShown() and orgView.Standby:IsShown() and orgView.OwnTentative:IsShown() and orgView.Out:IsShown()
-    and not orgView.SignUp:IsShown() and not orgView.Remove:IsShown(),
-    "the organizer's buttons are the states the game lets its creator have: confirmed, standby, tentative, out")
-H.check(not orgView.Confirm:IsEnabled(), "Confirmed is off while they are confirmed in that role")
-H.Click(orgView.Out)
-world:RunFor(2)
-ns.EventView.Refresh()
+OwnStatus("Out")
 H.check(MineOf(organizer).status == 3 and orgView.Others:GetText():find("|Hgre:" .. organizer.guid, 1, true),
-    "Out: in the Out line")
-H.check(not orgView.Out:IsEnabled() and orgView.Confirm:IsEnabled(), "Out is off now, Confirmed on")
-H.check(orgView.Mine:GetText():find("Out", 1, true) ~= nil and not orgView.Mine:GetText():find("Signed up", 1, true),
-    "and their state reads Out, nothing else")
-H.Click(orgView.Confirm)
-world:RunFor(2)
-H.check(MineOf(organizer).status == 1 and ns.States.Goes(MineOf(organizer)), "Confirmed: confirmed again, not left out")
-H.Click(orgView.OwnTentative)
-world:RunFor(2)
+    "the organizer Out: in the Out line")
+OwnStatus("Confirmed")
+H.check(MineOf(organizer).status == 1 and ns.States.Goes(MineOf(organizer)), "Confirmed from there: confirmed again")
+OwnStatus("Tentative")
 H.check(ns.States.IsTentative(MineOf(organizer)), "Tentative: tentative")
-H.Click(orgView.Standby)
-world:RunFor(2)
+OwnStatus("Standby")
 H.check(MineOf(organizer).status == 2 and ns.States.Goes(MineOf(organizer)), "Standby: on standby")
-H.Click(orgView.Confirm)
-world:RunFor(2)
+OwnStatus("Confirmed")
 
 local sorted = ns.EventView.SortColumn({
     { st = 1, status = 2, order = 1, name = "standby" }, { st = 2, status = 0, order = 2, name = "tentative" },
@@ -336,13 +326,14 @@ world:RunFor(30)
 H.check(ns.Events.Get(key).lk, "ticked and saved: the event is locked")
 member.ns.EventView.Open(key)
 H.eq(view.Title:GetText(), "Molten Core (Locked)", "its title says so, as the game's calendar does")
-H.check(not view.SignUp:IsEnabled() and not view.Tentative:IsEnabled() and not view.Remove:IsEnabled(),
-    "a member can neither sign up, nor answer tentative, nor remove their sign-up")
-H.eq(view.Remove.reason, "This event is locked: it takes no answers.", "and the buttons say why")
+H.check(view.Remove:IsShown() and not view.Remove:IsEnabled(), "a member signed up cannot remove their sign-up")
+H.eq(view.Remove.reason, "This event is locked: it takes no answers.", "and the button says why")
 member.ns.EventList.InitRow(row, { event = member.ns.Events.Get(key) })
 H.eq(row.Title:GetText(), "Molten Core (Locked)", "the list says so too")
 ns.EventView.Open(key)
-H.check(orgView.Standby:IsEnabled() and orgView.OwnTentative:IsEnabled(), "the organizer still changes their own state")
+OwnStatus("Standby")
+H.eq(MineOf(organizer).status, 2, "the organizer still changes their own state")
+OwnStatus("Confirmed")
 H.Click(orgView.Edit)
 world:RunFor(5)
 H.check(form.Lock:GetChecked(), "the form shows it locked")
@@ -631,7 +622,7 @@ for _, someView in ipairs({ view, orgView }) do
 end
 Errors("roles")
 
-H.section("UI: a moderator's own buttons")
+H.section("UI: a moderator's own status, and anyone's note, from their name's menu")
 local function Removes()
     local count = 0
     for _, call in ipairs(member.calendarCalls) do
@@ -645,33 +636,47 @@ local function Invite(guid)
     local event = ns.Events.Get(scholo.key)
     return world.calendar.events[event.ci].invites[guid]
 end
+-- The member picks from their own name's menu.
+local function OwnPick(text)
+    member.ns.EventView.Refresh()
+    member.contextMenu = nil
+    for role = 1, 3 do
+        local own = NameIn(view, role, member.guid)
+        if own then
+            H.Click(own, "RightButton")
+        end
+    end
+    if not member.contextMenu then
+        view._scripts.OnHyperlinkClick(view, "gre:" .. member.guid, "Member Name", "RightButton")
+    end
+    local entry = member.contextMenu and H.MenuEntry(member.contextMenu, text)
+    if entry and entry.setSelected then
+        entry.setSelected()
+    elseif entry then
+        entry.callback()
+    end
+    return entry ~= nil
+end
 H.check(ns.Events.SetModerator(scholo.key, member.guid, true), "the organizer names the member a moderator")
 world:RunFor(30)
 member.ns.EventView.Refresh()
-local modButtons = view.States.moderator
-H.check(modButtons[1].button:IsShown() and modButtons[5].button:IsShown() and not view.SignUp:IsShown()
-    and not view.Confirm:IsShown(), "theirs: Confirmed, Standby, Tentative, Out and Remove sign-up")
-H.eq(modButtons[4].button:GetText(), "Out", "Out, as the organizer's")
-H.eq(modButtons[5].button:GetText(), "Remove sign-up", "the last removes their sign-up")
-H.eq(modButtons[5].button.reason, "Takes your sign-up back: you are a moderator no more, as in the game's calendar.",
-    "and says it ends their moderation")
+H.check(view.Remove:IsShown() and not view.SignUp:IsShown(), "under the columns, a moderator only removes their sign-up")
+H.eq(view.Remove.reason, "Takes your sign-up back: you are a moderator no more, as in the game's calendar.",
+    "which says it ends their moderation")
 local removesBefore = Removes()
-H.Click(modButtons[3].button)
+H.check(OwnPick("Tentative"), "their own name's menu gives them a status")
 world:RunFor(30)
 local modMine = member.ns.Events.Mine(member.ns.Events.Get(scholo.key))
 H.check(member.ns.States.IsTentative(modMine) and member.ns.Events.IsModerator(member.ns.Events.Get(scholo.key), member.guid),
     "Tentative: tentative, a moderator still")
 H.check(Invite(member.guid) ~= nil and Invite(member.guid).status == 8 and Invite(member.guid).modStatus == "MODERATOR",
     "in the calendar too, given as a status: still in its list, a moderator")
-H.Click(modButtons[1].button)
+OwnPick("Confirmed")
 world:RunFor(30)
 modMine = member.ns.Events.Mine(member.ns.Events.Get(scholo.key))
 H.check(modMine ~= nil and modMine.status == 1 and Invite(member.guid) ~= nil and Invite(member.guid).status == 3
-    and Invite(member.guid).modStatus == "MODERATOR",
-    "Confirmed: confirmed, in both, a moderator still")
-member.ns.EventView.Refresh()
-H.eq(modButtons[1].button.reason, "You are already in this state.", "Confirmed is off now, saying why")
-H.Click(modButtons[4].button)
+    and Invite(member.guid).modStatus == "MODERATOR", "Confirmed: confirmed, in both, a moderator still")
+OwnPick("Out")
 world:RunFor(30)
 modMine = member.ns.Events.Mine(member.ns.Events.Get(scholo.key))
 H.check(modMine ~= nil and modMine.status == 3 and member.ns.Events.IsModerator(member.ns.Events.Get(scholo.key), member.guid),
@@ -679,17 +684,48 @@ H.check(modMine ~= nil and modMine.status == 3 and member.ns.Events.IsModerator(
 H.check(Invite(member.guid) ~= nil and Invite(member.guid).status == 4 and Invite(member.guid).modStatus == "MODERATOR",
     "in the calendar too")
 H.eq(Removes(), removesBefore, "their sign-up never taken back in the calendar meanwhile")
-member.ns.EventView.Refresh()
-H.Click(modButtons[5].button)
+OwnPick("Confirmed")
+world:RunFor(30)
+-- The note, from their own name's menu: its time (their place in the order
+-- they signed up) stays.
+local answeredAt = member.ns.Data.GetOwnRecord(false).su[scholo.key].at
+H.check(OwnPick("Edit note"), "their own name's menu edits their note")
+local editor = member.ns.EventView.NoteEditor()
+local noteBox = editor and editor:IsShown() and editor.Box
+H.check(noteBox and noteBox:GetText() == "", "in a small window, with their note (none yet)")
+noteBox:SetText("  bring flasks  ")
+noteBox._scripts.OnEnterPressed(noteBox)
+world:RunFor(30)
+modMine = member.ns.Events.Mine(member.ns.Events.Get(scholo.key))
+H.check(modMine.no == "bring flasks" and member.ns.Data.GetOwnRecord(false).su[scholo.key].at == answeredAt,
+    "Enter saves it, trimmed; the answer's time stays")
+H.check(not editor:IsShown(), "and closes the window")
+local forOrganizer
+for _, signUp in ipairs(ns.Events.SignUps(ns.Events.Get(scholo.key))) do
+    if signUp.guid == member.guid then
+        forOrganizer = signUp
+    end
+end
+H.check(forOrganizer ~= nil and forOrganizer.no == "bring flasks" and forOrganizer.status == 1,
+    "for everyone, their status unchanged")
+member.contextMenu = nil
+local organizerName
+for role = 1, 3 do
+    organizerName = organizerName or NameIn(view, role, organizer.guid)
+end
+H.Click(organizerName, "RightButton")
+H.check(member.contextMenu ~= nil and H.MenuEntry(member.contextMenu, "Edit note") == nil,
+    "no one edits another's note")
+H.Click(view.Remove)
 world:RunFor(30)
 H.check(member.ns.Events.Mine(member.ns.Events.Get(scholo.key)) == nil
     and not member.ns.Events.IsModerator(member.ns.Events.Get(scholo.key), member.guid),
     "Remove sign-up: out of its list, a moderator no more, as in the game")
 member.ns.EventView.Refresh()
-H.check(view.SignUp:IsShown() and not modButtons[1].button:IsShown(), "a member's buttons again")
+H.check(view.SignUp:IsShown() and view.Tentative:IsShown() and not view.Remove:IsShown(), "Sign up and Tentative again")
 member.ns.EventView.Close()
 ns.EventView.Close()
-Errors("a moderator's buttons")
+Errors("a moderator's status and notes")
 
 H.section("UI: the game's limit of events created")
 local madeByOrganizer = 0
