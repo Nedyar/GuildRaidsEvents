@@ -28,7 +28,9 @@ linked to the game's calendar.
   leaves your calendar for about an hour (or until you log in again); you
   answer again once it is back.
   The buttons say so when they are off. The organizer, whom the game keeps in their event, picks their
-  own state instead: **Confirmed**, **Standby**, **Tentative** or **Out**.
+  own state instead: **Confirmed**, **Standby**, **Tentative** or **Out**;
+  a moderator, **Confirmed**, **Standby**, **Tentative** or **Remove
+  sign-up** (which ends their moderation, as in the game).
 - **Creating an event**: **New event**, under the list, for those whose
   guild rank may add guild events to the game's calendar. Give it a title,
   a type (raid, dungeon, PvP, meeting, other) and, for a raid or a dungeon,
@@ -101,7 +103,8 @@ linked to the game's calendar.
 - **The notification mark**, as the game shows its own, on the tab and on the
   micro menu's guild button, while an upcoming event waits for your answer
   (until you see it in the list); in the list, on the rows of those new
-  when you opened the tab, until you answer them or open it again.
+  when you opened the tab, until you point at them, answer them or open it
+  again.
 
 Everything travels between the members who have the addon, by hidden
 addon messages, while any of them is online: what you missed reaches you

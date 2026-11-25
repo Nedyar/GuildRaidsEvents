@@ -703,12 +703,6 @@ function Events.SetStatus(key, guid, st)
     if not event or not record or not ns.Rights.MayIManage(event) then
         return false
     end
-    if guid == ns.playerGUID and guid ~= event.owner and st == Events.OUT then
-        -- A moderator who puts themselves out leaves the event's list, as
-        -- in the game's calendar (seen in game): their sign-up goes, and
-        -- their moderation with it.
-        return Events.Answer(key, nil)
-    end
     if not HasRoom(record.ms, key, LIMITS.statusEvents) or not HasRoom(record.ms and record.ms[key], guid, LIMITS.perEvent) then
         return false
     end

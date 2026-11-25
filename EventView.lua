@@ -139,7 +139,15 @@ local function NameMenu(owner, signUp)
                 root:CreateRadio(UI.StatusName(status), function()
                     return signUp.status == status and not (signUp.auto and status ~= Events.NONE)
                 end, function()
-                    Events.SetStatus(event.key, signUp.guid, status)
+                    if status == Events.OUT and signUp.guid == ns.playerGUID and event.owner ~= ns.playerGUID then
+                        -- A moderator who puts themselves out leaves the
+                        -- event's list, and their moderation with it, as
+                        -- in the game's calendar (seen in game; others
+                        -- put out stay).
+                        Events.Answer(event.key, nil)
+                    else
+                        Events.SetStatus(event.key, signUp.guid, status)
+                    end
                 end)
             end
             root:CreateDivider()
@@ -313,14 +321,15 @@ end
 
 -- The player gives themselves a state with one of their buttons, with the
 -- role and note chosen: a member answers; the organizer (the event's
--- creator, whom the game keeps in it) answers and sets their own status.
+-- creator, whom the game keeps in it) and its moderators answer and set
+-- their own status, as the game's calendar lets them.
 local function SetOwnState(state)
     local event = Events.Get(shownKey)
     if not event then
         return
     end
     local note = strtrim(view.Note:GetText() or "")
-    States.SetMine(event.key, state, selectedRole or Roles.Default(), note, event.owner == ns.playerGUID)
+    States.SetMine(event.key, state, selectedRole or Roles.Default(), note, ns.Rights.MayIManage(event))
 end
 
 local function CreateControls()
@@ -358,7 +367,9 @@ local function CreateControls()
     -- One button per state the player can give themselves, as the game's
     -- calendar offers them: a member signs up, signs up as tentative or
     -- removes their sign-up; the organizer (the event's creator, whom the
-    -- game keeps in it) is confirmed, on standby, tentative or out.
+    -- game keeps in it) is confirmed, on standby, tentative or out; a
+    -- moderator is confirmed, on standby or tentative, or removes their
+    -- sign-up (and their moderation with it).
     local function StateButton(state, text)
         return { state = state, button = UI.Button(view, text or UI.StateName(state), function()
             SetOwnState(state)
@@ -367,10 +378,15 @@ local function CreateControls()
     view.States = {
         member = { StateButton("signed"), StateButton("tentative"), StateButton("none", L["Remove sign-up"]) },
         organizer = {},
+        moderator = {},
     }
     for _, state in ipairs({ "confirmed", "standby", "tentative", "out" }) do
         table.insert(view.States.organizer, StateButton(state))
     end
+    for _, state in ipairs({ "confirmed", "standby", "tentative" }) do
+        table.insert(view.States.moderator, StateButton(state))
+    end
+    table.insert(view.States.moderator, StateButton("none", L["Remove sign-up"]))
     view.SignUp, view.Tentative, view.Remove = view.States.member[1].button, view.States.member[2].button,
         view.States.member[3].button
     view.Confirm, view.Standby, view.OwnTentative, view.Out = view.States.organizer[1].button,
@@ -613,23 +629,28 @@ function EventView.UpdateControls(signUps)
     local deleting = ns.Calendar.Deleting(event.key)
     view.Delete:SetEnabled(not deleting)
     view.Delete.reason = deleting and L["Syncing the calendar..."] or L["Deletes this event, for everyone."]
-    -- A locked event takes no answers from members; its creator still
-    -- changes their own, as the game's calendar lets them.
-    local locked = event.lk and not organizer
-    local open = Events.IsUpcoming(event) and not locked
-    local reason
-    if not Events.IsUpcoming(event) then
-        reason = L["This event is over."]
-    elseif locked then
-        reason = L["This event is locked: it takes no answers."]
-    elseif not UI.MeetsLevel(event) then
-        reason = L["This event is for level %d or higher."]:format(event.ml)
+    -- The organizer and the moderators give themselves a status, as the
+    -- game's calendar lets them; members answer.
+    local moderator = not organizer and Events.IsModerator(event, ns.playerGUID)
+    local givesStatus = organizer or moderator
+    -- Why a button is off, whatever the player's state: the event is over;
+    -- it is locked (it takes no answers from members, nor their sign-ups
+    -- back; its creator still changes their own state, and a moderator
+    -- their status); the player is below its level.
+    local function Reason(item)
+        if not Events.IsUpcoming(event) then
+            return L["This event is over."]
+        elseif event.lk and not organizer and not (moderator and item.state ~= "none") then
+            return L["This event is locked: it takes no answers."]
+        elseif not UI.MeetsLevel(event) then
+            return L["This event is for level %d or higher."]:format(event.ml)
+        end
     end
     local role = selectedRole or Roles.Default()
     local note = strtrim(view.Note:GetText() or "")
     local same = mine ~= nil and mine.ro == role and (mine.no or "") == note
     local hidden = not organizer and state == "none" and ns.Calendar.HiddenFromMe(event)
-    local shown = organizer and view.States.organizer or view.States.member
+    local shown = organizer and view.States.organizer or moderator and view.States.moderator or view.States.member
     for _, set in pairs(view.States) do
         for _, item in ipairs(set) do
             item.button:SetShown(set == shown)
@@ -651,11 +672,15 @@ function EventView.UpdateControls(signUps)
             -- Signed up includes the statuses the organizer gives.
             current = States.IsSignedUp(state)
         end
+        local reason = Reason(item)
         if item.state == "none" then
             -- Removing: while there is a sign-up and the event is to come.
-            button:SetEnabled(open and state ~= "none")
-            button.reason = not open and reason or (state == "none" and L["You are not signed up."]) or nil
-        elseif not organizer and state ~= "none" and (state == "out" or not current) then
+            -- A moderator's sign-up taken back ends their moderation.
+            button:SetEnabled(reason == nil and state ~= "none")
+            button.reason = reason or (state == "none" and L["You are not signed up."])
+                or (moderator and L["Takes your sign-up back: you are a moderator no more, as in the game's calendar."])
+                or nil
+        elseif not givesStatus and state ~= "none" and (state == "out" or not current) then
             -- Another answer: removing the sign-up first, and waiting.
             button:SetEnabled(false)
             button.reason = reason
@@ -666,7 +691,9 @@ function EventView.UpdateControls(signUps)
                 or L["Wait for the event to show again in your calendar (about an hour after removing your sign-up, or when you log in again)."]
         elseif current and (same or item.state == "out") then
             button:SetEnabled(false)
-            button.reason = L["You are already in this state."]
+            -- Signed up in another way (a status given): which.
+            button.reason = item.state == state and L["You are already in this state."]
+                or L["You are already signed up: %s."]:format(UI.StateName(state))
         else
             button:SetEnabled(reason == nil)
             button.reason = reason

@@ -133,6 +133,8 @@ ns.RegisterLocale("koKR", function(L)
     L["Your status: %s."] = "내 상태: %s."
     L["Not signed up"] = "신청 안 함"
     L["You are already in this state."] = "이미 이 상태입니다."
+    L["Takes your sign-up back: you are a moderator no more, as in the game's calendar."] = "신청을 취소합니다. 게임 달력처럼 더 이상 운영자가 아닙니다."
+    L["You are already signed up: %s."] = "이미 신청했습니다: %s."
     L["To change your answer, remove your sign-up and wait for the event to show again in your calendar (about an hour, or when you log in again)."] = "응답을 바꾸려면 참가 신청을 취소하고 일정이 달력에 다시 나타날 때까지 기다리세요(약 1시간, 또는 다시 접속하면)."
     L["Wait for the event to show again in your calendar (about an hour after removing your sign-up, or when you log in again)."] = "일정이 달력에 다시 나타날 때까지 기다리세요(참가 신청 취소 후 약 1시간, 또는 다시 접속하면)."
 end)

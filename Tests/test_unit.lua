@@ -299,13 +299,10 @@ H.check(guild.members[solo.guid].su[created] == nil and guild.members[solo.guid]
 H.check(not Events.Change(created, { ty = 1, ti = "Scholomance", tm = Events.Now() + 86400, ml = 55 }), "and it cannot be changed again")
 created = Events.Create({ ty = 1, ti = "Scholomance", tm = Events.Now() + 86400, de = "", ml = 55 })
 H.check(Events.IsModerator(Events.Get(eventKey), solo.guid), "the guild master moderates a member's event")
-H.check(Events.SetStatus(eventKey, solo.guid, Events.OUT), "and puts themselves out")
-H.check(guild.members[solo.guid].su[eventKey] == nil and not Events.IsModerator(Events.Get(eventKey), solo.guid),
-    "which takes them out of its list, and their moderation with it, as in the game's calendar")
-guild.members[solo.guid].su[eventKey] = { st = 1, ro = 1, at = now }
-guild.members[solo.guid].mo[eventKey] = nil
-Events.Invalidate()
-H.check(Events.IsModerator(Events.Get(eventKey), solo.guid), "(signed up and named again)")
+H.check(Events.SetStatus(eventKey, solo.guid, Events.OUT), "a status out given them")
+H.check(guild.members[solo.guid].su[eventKey] ~= nil and Events.IsModerator(Events.Get(eventKey), solo.guid),
+    "leaves them in its list, a moderator still (only a moderator putting themselves out leaves it)")
+H.check(Events.SetStatus(eventKey, solo.guid, Events.NONE), "(status taken back)")
 H.check(Events.SetStatus(eventKey, member, Events.OUT), "a moderator gives the organizer a status too, as the game's calendar lets them")
 local organizerLine
 for _, signUp in ipairs(Events.SignUps(Events.Get(eventKey))) do

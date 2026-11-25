@@ -133,6 +133,8 @@ ns.RegisterLocale("itIT", function(L)
     L["Your status: %s."] = "Il tuo stato: %s."
     L["Not signed up"] = "Non iscritto"
     L["You are already in this state."] = "Sei già in questo stato."
+    L["Takes your sign-up back: you are a moderator no more, as in the game's calendar."] = "Rimuove la tua iscrizione: non sei più moderatore, come nel calendario del gioco."
+    L["You are already signed up: %s."] = "Sei già iscritto: %s."
     L["To change your answer, remove your sign-up and wait for the event to show again in your calendar (about an hour, or when you log in again)."] = "Per cambiare la tua risposta, rimuovi la tua iscrizione e attendi che l'evento ricompaia nel tuo calendario (circa un'ora, o quando rientri nel gioco)."
     L["Wait for the event to show again in your calendar (about an hour after removing your sign-up, or when you log in again)."] = "Attendi che l'evento ricompaia nel tuo calendario (circa un'ora dopo aver rimosso la tua iscrizione, o quando rientri nel gioco)."
 end)

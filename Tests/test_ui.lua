@@ -79,6 +79,10 @@ world:RunFor(2)
 H.check(not Tab(member).Badge:IsShown(), "seen: the tab's mark goes")
 member.ns.EventList.InitRow(row, list.elements[1])
 H.check(row.Mark:IsShown(), "its row keeps the mark while the tab stays open: what is new shows")
+row._scripts.OnEnter(row)
+H.check(not row.Mark:IsShown(), "pointed at, its mark goes")
+member.ns.EventList.InitRow(row, list.elements[1])
+H.check(not row.Mark:IsShown(), "and stays gone")
 member.ns.EventList.ForgetMarks()
 member.ns.EventList.InitRow(row, list.elements[1])
 H.check(not row.Mark:IsShown(), "the tab opened again, it is new no more")
@@ -175,6 +179,9 @@ H.MenuEntry(menu, "Confirmed").setSelected()
 world:RunFor(30)
 local seen = member.ns.Events.Mine(member.ns.Events.Get(key))
 H.eq(seen.status, 1, "the member is confirmed, for everyone")
+member.ns.EventView.Open(key)
+H.eq(view.SignUp.reason, "You are already signed up: Confirmed.", "their Sign up, off, says how they are signed up")
+member.ns.EventView.Close()
 H.Click(healer, "RightButton")
 menu = organizer.contextMenu
 H.check(H.MenuEntry(menu, "Set moderator") ~= nil, "the menu also names a moderator, as the game's calendar does")
@@ -622,9 +629,65 @@ for _, someView in ipairs({ view, orgView }) do
         column.IsMouseOver = nil
     end
 end
+Errors("roles")
+
+H.section("UI: a moderator's own buttons")
+local function Removes()
+    local count = 0
+    for _, call in ipairs(member.calendarCalls) do
+        if call == "RemoveEvent" then
+            count = count + 1
+        end
+    end
+    return count
+end
+local function Invite(guid)
+    local event = ns.Events.Get(scholo.key)
+    return world.calendar.events[event.ci].invites[guid]
+end
+H.check(ns.Events.SetModerator(scholo.key, member.guid, true), "the organizer names the member a moderator")
+world:RunFor(30)
+member.ns.EventView.Refresh()
+local modButtons = view.States.moderator
+H.check(modButtons[1].button:IsShown() and modButtons[4].button:IsShown() and not view.SignUp:IsShown()
+    and not view.Confirm:IsShown(), "theirs: Confirmed, Standby, Tentative and Remove sign-up")
+H.eq(modButtons[4].button:GetText(), "Remove sign-up", "the last removes their sign-up")
+H.eq(modButtons[4].button.reason, "Takes your sign-up back: you are a moderator no more, as in the game's calendar.",
+    "and says it ends their moderation")
+local removesBefore = Removes()
+H.Click(modButtons[3].button)
+world:RunFor(30)
+local modMine = member.ns.Events.Mine(member.ns.Events.Get(scholo.key))
+H.check(member.ns.States.IsTentative(modMine) and member.ns.Events.IsModerator(member.ns.Events.Get(scholo.key), member.guid),
+    "Tentative: tentative, a moderator still")
+H.check(Invite(member.guid) ~= nil and Invite(member.guid).status == 8 and Invite(member.guid).modStatus == "MODERATOR",
+    "in the calendar too, given as a status: still in its list, a moderator")
+H.Click(modButtons[1].button)
+world:RunFor(30)
+modMine = member.ns.Events.Mine(member.ns.Events.Get(scholo.key))
+H.check(modMine ~= nil and modMine.status == 1 and Invite(member.guid) ~= nil and Invite(member.guid).status == 3
+    and Invite(member.guid).modStatus == "MODERATOR",
+    "Confirmed: confirmed, in both, a moderator still")
+H.eq(Removes(), removesBefore, "their sign-up never taken back in the calendar meanwhile")
+member.ns.EventView.Refresh()
+H.eq(modButtons[1].button.reason, "You are already in this state.", "Confirmed is off now, saying why")
+member.contextMenu = nil
+for role = 1, 3 do
+    local own = NameIn(view, role, member.guid)
+    if own then
+        H.Click(own, "RightButton")
+    end
+end
+H.MenuEntry(member.contextMenu, "Out").setSelected()
+world:RunFor(30)
+H.check(member.ns.Events.Mine(member.ns.Events.Get(scholo.key)) == nil
+    and not member.ns.Events.IsModerator(member.ns.Events.Get(scholo.key), member.guid),
+    "putting themselves out from their name's menu takes them out of its list, a moderator no more, as in the game")
+member.ns.EventView.Refresh()
+H.check(view.SignUp:IsShown() and not modButtons[1].button:IsShown(), "a member's buttons again")
 member.ns.EventView.Close()
 ns.EventView.Close()
-Errors("roles")
+Errors("a moderator's buttons")
 
 H.section("UI: the game's limit of events created")
 local madeByOrganizer = 0

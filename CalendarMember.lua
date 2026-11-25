@@ -69,12 +69,13 @@ function Member.AnswerToSend(now)
                     if last and last.has == has and last.wanted == wanted and now - last.at < RETRY then
                         wanted = has
                     end
-                    local given = status == Enum.CalendarStatus.Confirmed or status == Enum.CalendarStatus.Standby
-                        or status == Enum.CalendarStatus.Out
-                    -- A status the organizer gave in the calendar stays while the
-                    -- addon gives one too (a tentative member may be confirmed),
-                    -- unless the player is not coming.
-                    if has ~= wanted and not (given and managed and wanted ~= "none") then
+                    -- Signed up there, with a status given in the addon (by
+                    -- those who manage the event, or by a moderator to
+                    -- themselves): the status goes there as such
+                    -- (CalendarStatuses.lua), never by taking the sign-up
+                    -- back, unless the player is not coming. Taking it
+                    -- back would end a moderator's moderation.
+                    if has ~= wanted and not (managed and has ~= "none" and wanted ~= "none") then
                         return { key = key, entry = entry, has = has, wanted = wanted }
                     end
                 end

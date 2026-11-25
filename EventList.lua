@@ -3,8 +3,9 @@
 -- week, the latest first. Each row: the event type's icon, the title, when
 -- it is, its type and organizer, how many signed up in each role, and the
 -- player's answer. The notification mark shows on the rows of upcoming
--- events the player had not seen when the tab opened, until they answer;
--- showing a row sees it. A click on a row opens the event (EventView.lua).
+-- events the player had not seen when the tab opened, until they point at
+-- the row or answer; showing a row sees it. A click on a row opens the
+-- event (EventView.lua).
 local _, ns = ...
 local L = ns.L
 
@@ -93,6 +94,13 @@ local function CreateRow(row)
     highlight:SetAllPoints()
     highlight:SetBlendMode("ADD")
     row:EnableMouse(true)
+    -- Pointed at, it is new no more: its mark goes.
+    row:SetScript("OnEnter", function(self)
+        if self.event and marked[self.event.key] then
+            marked[self.event.key] = nil
+            self.Mark:Hide()
+        end
+    end)
     row:SetScript("OnMouseUp", function(self, button)
         if button == "LeftButton" and self.event then
             ns.EventView.Open(self.event.key)
@@ -121,7 +129,7 @@ local function InitRow(row, element)
     row.Send.reason = blocked or L["Not in the game's calendar yet: this click creates it there."]
     row.Counts:SetPoint("RIGHT", unsent and row.Send or row, unsent and "LEFT" or "RIGHT", unsent and -6 or -30, 0)
     -- Shown, so seen: the mark goes from the tab at once, and stays on the
-    -- row while the tab stays open (until it is answered).
+    -- row while the tab stays open, until it is pointed at or answered.
     if UI.IsUnseen(event) then
         marked[event.key] = true
     end

@@ -133,6 +133,8 @@ ns.RegisterLocale("zhTW", function(L)
     L["Your status: %s."] = "你的狀態：%s。"
     L["Not signed up"] = "未報名"
     L["You are already in this state."] = "你已處於此狀態。"
+    L["Takes your sign-up back: you are a moderator no more, as in the game's calendar."] = "取消你的報名：你將不再是管理員，與遊戲行事曆一致。"
+    L["You are already signed up: %s."] = "你已報名：%s。"
     L["To change your answer, remove your sign-up and wait for the event to show again in your calendar (about an hour, or when you log in again)."] = "要變更回應，請取消報名，並等待活動重新出現在你的行事曆中（約一小時，或重新登入後）。"
     L["Wait for the event to show again in your calendar (about an hour after removing your sign-up, or when you log in again)."] = "請等待活動重新出現在你的行事曆中（取消報名後約一小時，或重新登入後）。"
 end)
