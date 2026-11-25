@@ -352,16 +352,32 @@ end
 
 -- Cancelled events the player cleared from their list --------------------------------------
 
--- ns.db.settings.cleared = { [key] = the event's start }: on every
--- character of the account, and only in this player's list (the others and
--- the API still have them). Forgotten once the event is long past.
+-- OwnState().cleared = { [key] = the event's start }: this character's own
+-- (never shared, nor seen by the account's other characters), and only in
+-- its list (the others and the API still have them). Forgotten once the
+-- event is long past.
 local function Cleared()
-    ns.db.settings.cleared = ns.db.settings.cleared or {}
-    return ns.db.settings.cleared
+    -- 0.1.0's first builds kept one for the whole account: it hid an
+    -- organizer's own event when another of their characters cleared it.
+    ns.db.settings.cleared = nil
+    local own = ns.Data.OwnState()
+    own.cleared = own.cleared or {}
+    return own.cleared
 end
 
 function UI.IsCleared(event)
-    return event.x == true and ns.db ~= nil and Cleared()[event.key] ~= nil
+    return event.x == true and ns.db ~= nil and ns.playerGUID ~= nil and Cleared()[event.key] ~= nil
+end
+
+-- How long a cancelled event stays in the list by itself (until Events.KEEP
+-- after it starts), in the game's words: "6 Days", "5 Hours".
+function UI.LeavesIn(event)
+    local seconds = math.max(event.tm + Events.KEEP - Events.Now(), 60)
+    local text = SecondsToTime(seconds, true, true, 1, true)
+    if text == "" then
+        text = SecondsToTime(seconds, true, true, 2, true)
+    end
+    return text
 end
 
 -- Clears the cancelled ones of events from the player's list: the player's

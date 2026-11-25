@@ -8,9 +8,10 @@ linked to the game's calendar.
   (Chat, Roster, Guild Info...). It lists the guild's upcoming events, the
   soonest first, and those of the last week. Each row shows when the event
   is, its type and organizer, how many signed up in each role, and your
-  answer. Cancelled events have a subtab of their own, where **Clear cancelled** (or a row's X)
-  deletes your own cancelled events, for everyone; the others' leave only
-  your list.
+  answer. Cancelled events have a subtab of their own, where each row says
+  how long until it leaves the list by itself (a week after the event's
+  start), and **Clear cancelled** (or a row's X) deletes your own cancelled
+  events, for everyone; the others' leave only this character's list.
 - **An event's view**: click a row. Its sign-ups show in three columns, tanks,
   healers and damage, each name in its class colour, with its state
   (in the game calendar's colours: signed up and confirmed in green, standby

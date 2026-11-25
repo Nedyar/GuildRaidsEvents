@@ -77,8 +77,9 @@ end
 -- What the addon's window shows of the calendar, and what changes there
 -- with time: whether a new event can be sent, what waits for its button,
 -- what is hidden from the player, the last error; which events are to come
--- or of the last week, and the player's level (who may sign up). The window
--- is told (CalendarPending) when it changes.
+-- or of the last week, how long a cancelled one stays listed (by the
+-- hour), and the player's level (who may sign up). The window is told
+-- (CalendarPending) when it changes.
 local shownSignature
 
 local function WindowSignature()
@@ -89,10 +90,10 @@ local function WindowSignature()
         "v" .. tostring(UnitLevel("player")),
     }
     for key, event in pairs(Events.All()) do
-        parts[#parts + 1] = ("k%s|%s|%s|%s|%s|%s|%s"):format(key, tostring(Calendar.Unsent(event)),
+        parts[#parts + 1] = ("k%s|%s|%s|%s|%s|%s|%s|%s"):format(key, tostring(Calendar.Unsent(event)),
             tostring(Calendar.HiddenFromMe(event)), tostring(Calendar.Restoring(key)),
             tostring(Calendar.Cancelling(key)), tostring(Events.IsUpcoming(event, now)),
-            tostring(event.tm + Events.KEEP > now))
+            tostring(event.tm + Events.KEEP > now), event.x and math.floor((event.tm + Events.KEEP - now) / 3600) or "")
     end
     table.sort(parts)
     return table.concat(parts, ",")

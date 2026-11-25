@@ -124,7 +124,12 @@ local function InitRow(row, element)
     row.Title:SetText(event.x and ("%s (%s)"):format(event.ti, L["cancelled"]) or UI.EventTitle(event))
     row.When:SetText(L["%s  ·  %s  ·  by %s"]:format(UI.DateText(event.tm), UI.KindText(event),
         Events.MemberName(event.owner) or "?"))
-    row.Counts:SetText(EventList.CountsText(event, signUps))
+    local counts = EventList.CountsText(event, signUps)
+    if event.x then
+        -- When it goes from the list by itself.
+        counts = ("%s  ·  %s"):format(counts, L["Leaves this list in %s"]:format(UI.LeavesIn(event)))
+    end
+    row.Counts:SetText(counts)
     row.Mine:SetText(EventList.MineText(Events.Mine(event, signUps)))
     row.Cancelled:SetShown(event.x == true)
     row.Clear:SetShown(event.x == true)

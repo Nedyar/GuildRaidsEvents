@@ -550,8 +550,13 @@ H.check(clearPoint[1] == "RIGHT" and clearPoint[2] == memberPage.New and clearPo
     "left of New event, 2 apart as the game's buttons, never over it")
 member.ns.EventList.InitRow(row, cancelledRow)
 H.check(row.Clear:IsShown(), "and its row has its own button to clear it")
+H.check(row.Counts:GetText():find("Leaves this list in %d+ Days$") ~= nil,
+    "and says how long until it leaves the list by itself, in the game's words")
+member.ns.db.settings.cleared = { [key] = 1 }
 H.Click(row.Clear)
 H.check(Listed(memberPage, key) == nil and not memberPage.Clear:IsShown(), "it goes from the member's list")
+H.check(member.ns.Data.OwnState().cleared[key] ~= nil and member.ns.db.settings.cleared == nil,
+    "hidden for this character only (the account-wide list of the first builds forgotten)")
 H.check(member.ns.Events.Get(key) ~= nil, "the event itself stays")
 ns.EventView.Close()
 H.Click(page.SubTabs.Tabs[3])

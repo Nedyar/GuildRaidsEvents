@@ -102,6 +102,7 @@ ns.RegisterLocale("koKR", function(L)
     L["The game's calendar does not let you change this event."] = "게임 달력이 이 일정을 바꾸지 못하게 합니다."
     L["The game's calendar does not let you delete this event."] = "게임 달력이 이 일정을 지우지 못하게 합니다."
     L["Only its organizer can restore it: it is made again in the game's calendar."] = "주최자만 복구할 수 있습니다. 게임 달력에 다시 만들어지기 때문입니다."
+    L["Leaves this list in %s"] = "%s 후 이 목록에서 사라집니다"
     L["The game's calendar refused the change. Click again to retry."] = "게임 달력이 변경을 거부했습니다. 다시 클릭하여 재시도하세요."
     L["No reminder"] = "알림 없음"
     L["%d |4minute:minutes; before"] = "%d분 전"
