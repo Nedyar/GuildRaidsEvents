@@ -225,6 +225,45 @@ function Organizer.Watch()
     end
 end
 
+-- Every client: someone else's event made in the addon whose calendar
+-- event is gone (deleted in the game's window while its organizer's and
+-- moderators' clients were away, which would delete it for everyone) is
+-- no longer shown here, as the calendar no longer has it: once the
+-- calendar's data came again since this client last saw it there, or
+-- since it first found it missing, and lacks it (also in the guild's
+-- list). Shown again should the calendar show it again; its organizer's
+-- client deletes it for good when back.
+local seenHere, missingHere = {}, {}  -- as seen and missing above, for others' events
+
+function Organizer.WatchOthers()
+    local clock, now = GetTime(), Events.Now()
+    local hid = false
+    for key, event in pairs(Events.All()) do
+        if event.ci ~= 0 and not event.cal and event.owner ~= ns.playerGUID and event.tm > now and Read.InRange(event.tm) then
+            if Read.Find(event.ci) or Read.GuildEntry(event.ci) then
+                seenHere[key], missingHere[key] = Read.reads, nil
+            else
+                local first = missingHere[key] == nil
+                if first then
+                    missingHere[key] = { at = clock, reads = Read.reads }
+                end
+                if Read.reads > (seenHere[key] or missingHere[key].reads) then
+                    missingHere[key], seenHere[key] = nil, nil
+                    Read.HideGone(event.ci)
+                    Note("from the calendar", "gone from it, so no longer shown: " .. event.ti)
+                    hid = true
+                elseif first or clock - missingHere[key].at > 3 then
+                    missingHere[key].at = clock
+                    ns.Try(C_Calendar.OpenCalendar)
+                end
+            end
+        end
+    end
+    if Read.ShowBack() or hid then
+        Events.Changed()
+    end
+end
+
 -- The organizer's client: the guild events their character created in the
 -- game's calendar window, into the addon as theirs, under the key everyone
 -- knows it by while no record has it (Events.CalendarMadeID): what was

@@ -17,6 +17,7 @@ local found = {}
 local firstSeen = {}         -- [event ID] = GetTime() this client first saw it, this session
 local SETTLE = 30            -- seconds a new calendar event takes to come in with its creator's record
 local madeSignature          -- what MadeThere gave at the last look, as one text
+local goneHere = {}          -- [event ID] = true: others' calendar events found gone (CalendarOrganizer.WatchOthers)
 Read.scanned = false         -- the calendar's data came since we asked for it
 Read.reads = 0               -- how many times the calendar's data came
 Read.busy = false            -- a step with an open event goes on
@@ -223,6 +224,29 @@ function Read.MadeThere()
         end
     end
     return made
+end
+
+-- Calendar events of others' events this client found gone from the
+-- calendar (deleted in the game's window while their organizer's client
+-- was away): their events are not shown here (Events.lua), until the
+-- calendar shows them again.
+function Read.GoneThere(calendarID)
+    return goneHere[calendarID] == true
+end
+
+function Read.HideGone(calendarID)
+    goneHere[calendarID] = true
+end
+
+-- Those the calendar shows again are shown again. Whether any was.
+function Read.ShowBack()
+    local back = false
+    for id in pairs(goneHere) do
+        if found[id] or Read.GuildEntry(id) then
+            goneHere[id], back = nil, true
+        end
+    end
+    return back
 end
 
 -- Whether what MadeThere gives changed since the last look (the events are

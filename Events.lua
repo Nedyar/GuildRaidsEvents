@@ -331,10 +331,14 @@ local function Build()
             end
         end
     end
+    local GoneThere = ns.CalendarRead.GoneThere
     for key, event in pairs(events) do
         -- x in an organizer's own event: 0.1.0's first builds' cancelled
-        -- events, deleted now.
-        if removed[key] or event.x then
+        -- events, deleted now. Someone else's whose calendar event this
+        -- client found gone: deleted in the game's window while those who
+        -- manage it were away (their clients delete it for good).
+        if removed[key] or event.x or (GoneThere and not event.cal and event.owner ~= ns.playerGUID and event.ci ~= 0
+                and GoneThere(event.ci)) then
             events[key], gone[key] = nil, event
         end
     end

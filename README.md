@@ -90,7 +90,9 @@ linked to the game's calendar.
   you change in the calendar's window (title, time, type, description,
   whether it is locked, the statuses of the sign-ups) comes into the addon;
   an event deleted there is deleted from the addon, for everyone, once the
-  calendar's data comes again without it; a guild event you create
+  calendar's data comes again without it (while its organizer's addon is
+  away, every other addon stops showing it as soon as its own calendar
+  no longer has it); a guild event you create
   there comes into the addon as yours; a sign-up made there counts as made
   in the addon. Your own answer, and the confirmations of the events you
   organize, reach the calendar by themselves. When both sides changed the

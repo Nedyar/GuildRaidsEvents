@@ -148,6 +148,7 @@ function Calendar.Tick()
     Send.TakePending()
     Organizer.Link()
     Organizer.Watch()
+    Organizer.WatchOthers()
     Organizer.Adopt()
     -- The player's answers given in the calendar come in at once, also while
     -- they view an event in its window: that opens nothing. Sending one does,

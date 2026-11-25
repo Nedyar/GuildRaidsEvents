@@ -1133,3 +1133,56 @@ world:RunFor(30)
 H.check(member.ns.Events.Get(hiddenKey) ~= nil and not world.calendar.events[hiddenID].deleted, "so nobody stops showing it")
 world.calendar.hidden[officer.guid][hiddenID] = nil
 Errors("gone from a calendar for a while")
+
+H.section("Calendar: deleted in the game's window while its organizer's addon is away")
+ns.EventForm.Open(nil)
+local awayForm = ns.EventForm.Frame()
+awayForm.TitleBox:SetText("Deleted while away")
+H.Click(awayForm.Save)
+world:RunFor(30)
+local awayEvent
+for _, one in ipairs(ns.Events.List("upcoming")) do
+    if one.ti == "Deleted while away" then
+        awayEvent = one
+    end
+end
+H.check(awayEvent ~= nil and member.ns.Events.Get(awayEvent.key) ~= nil, "an event of the organizer's, everyone's")
+local function NobodyShows()
+    local nobody = true
+    for _, client in ipairs(world.clients) do
+        if client.loggedIn then
+            nobody = nobody and client.ns.Events.Get(awayEvent.key) == nil
+        end
+    end
+    return nobody
+end
+world:Logout(organizer)
+world:RunFor(10)
+-- Missing from a look at the calendar, and no new data of it says so (the
+-- calendar's data incomplete for a moment): still shown.
+local memberOpenCalendar = member.env.C_Calendar.OpenCalendar
+member.env.C_Calendar.OpenCalendar = function() end
+world.calendar.events[awayEvent.ci].deleted = true
+world:RunFor(35)
+H.check(member.ns.Events.Get(awayEvent.key) ~= nil, "missing from a look, no new data saying so: still shown")
+world.calendar.events[awayEvent.ci].deleted = nil
+world:RunFor(12)
+member.env.C_Calendar.OpenCalendar = memberOpenCalendar
+world:WindowDelete(awayEvent.ci)
+world:RunFor(20)
+H.check(NobodyShows(), "deleted in the calendar's window, its organizer away: nobody shows it any more")
+world.calendar.events[awayEvent.ci].deleted = nil
+world:WindowEdit(awayEvent.ci, {})
+world:RunFor(20)
+H.check(member.ns.Events.Get(awayEvent.key) ~= nil, "should the calendar show it again, so does the addon")
+world:WindowDelete(awayEvent.ci)
+world:RunFor(20)
+H.check(NobodyShows(), "gone again")
+world:Login(organizer)
+world:RunFor(60)
+local stillInRecord = false
+for _, base in ipairs(organizer.ns.Data.GetOwnRecord(false).ev or {}) do
+    stillInRecord = stillInRecord or organizer.guid .. "/" .. base.id == awayEvent.key
+end
+H.check(not stillInRecord and NobodyShows(), "its organizer's client, back, deletes it for good")
+Errors("deleted while its organizer's addon is away")
