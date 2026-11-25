@@ -317,12 +317,17 @@ local function CreatePage()
     page:Hide()
 end
 
--- Opens the guild window (as its key does), on our tab once the window has
--- laid out its tabs (ours shows only on the guild's own view).
-function GuildTab.OpenTab()
-    if not (communities and communities:IsShown()) and type(ToggleGuildFrame) == "function" then
+-- Closes the guild window if it shows; else opens it (as its key does), on
+-- our tab once the window has laid out its tabs (ours shows only on the
+-- guild's own view).
+function GuildTab.ToggleTab()
+    if type(ToggleGuildFrame) ~= "function" then
+        return
+    elseif communities and communities:IsShown() then
         ToggleGuildFrame()
+        return
     end
+    ToggleGuildFrame()
     C_Timer.After(0, function()
         if tab and tab:IsShown() and page then
             ShowPage()
@@ -330,10 +335,36 @@ function GuildTab.OpenTab()
     end)
 end
 
--- On the game's calendar window, left of its close button, a button with
--- our tab's icon that opens it (UI.TitleButton). Once the calendar is
--- loaded (when first opened).
+-- On the game's calendar window, a button with our tab's icon that opens
+-- or closes it (UI.TitleButton). Left of its close button, its Filters
+-- (there before) moved left of ours; when the Filters are not found, at
+-- the title bar's other end, as far from the window's edge as its close
+-- button is. Once the calendar is loaded (when first opened).
 local calendarButton
+
+-- The calendar's Filters dropdown, by the names it has had in the game.
+local function CalendarFilter(calendar)
+    return calendar.FilterButton or _G.CalendarFilterButton or _G.CalendarFilterFrame
+end
+
+function GuildTab.PlaceOnCalendar(calendar, button, close)
+    local filter = CalendarFilter(calendar)
+    if close and filter and filter.SetPoint then
+        filter:ClearAllPoints()
+        filter:SetPoint("RIGHT", button, "LEFT", -4, 0)
+        return
+    end
+    local point, relative, relativePoint, x, y
+    if close and close.GetPoint then
+        point, relative, relativePoint, x, y = close:GetPoint(1)
+    end
+    button:ClearAllPoints()
+    if relative == calendar and point == "TOPRIGHT" and relativePoint == "TOPRIGHT" and type(x) == "number" then
+        button:SetPoint("TOPLEFT", calendar, "TOPLEFT", -x, y)
+    else
+        button:SetPoint("TOPLEFT", calendar, "TOPLEFT", 6, -4)
+    end
+end
 
 function GuildTab.SetupCalendar()
     local calendar = CalendarFrame
@@ -342,7 +373,8 @@ function GuildTab.SetupCalendar()
     end
     local close = calendar.CloseButton or CalendarCloseButton
     calendarButton = UI.TitleButton(calendar, close, ICON, L["Raids & Events"],
-        L["The guild's raids and events, in the guild window."], GuildTab.OpenTab)
+        L["The guild's raids and events, in the guild window."], GuildTab.ToggleTab)
+    GuildTab.PlaceOnCalendar(calendar, calendarButton, close)
     GuildTab.calendarButton = calendarButton
 end
 

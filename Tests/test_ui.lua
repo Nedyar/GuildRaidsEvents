@@ -860,16 +860,35 @@ ns.EventView.Open(ns.Events.List("upcoming")[1].key)
 H.check(page.Calendar:IsShown(), "there in an event's view too")
 ns.EventView.Close()
 communities:SetDisplayMode("ROSTER")
-organizer.env.CalendarFrame = H.NewObject(organizer, "Frame")
-organizer.env.CalendarFrame.CloseButton = H.NewObject(organizer, "Button")
+local calendarWindow = H.NewObject(organizer, "Frame")
+calendarWindow.CloseButton = H.NewObject(organizer, "Button")
+calendarWindow.FilterButton = H.NewObject(organizer, "Frame")
+organizer.env.CalendarFrame = calendarWindow
+organizer.env.ToggleGuildFrame = function()
+    if communities:IsShown() then
+        communities:Hide()
+    else
+        communities:Show()
+    end
+end
 ns.GuildTab.SetupCalendar()
 local toTab = ns.GuildTab.calendarButton
-H.check(toTab ~= nil and toTab._point[2] == organizer.env.CalendarFrame.CloseButton,
+H.check(toTab ~= nil and toTab._point[2] == calendarWindow.CloseButton,
     "the calendar's window has a button left of its close button")
+H.check(calendarWindow.FilterButton._point[1] == "RIGHT" and calendarWindow.FilterButton._point[2] == toTab,
+    "and its Filters, there before, left of it")
+local bare, bareButton = H.NewObject(organizer, "Frame"), H.NewObject(organizer, "Button")
+ns.GuildTab.PlaceOnCalendar(bare, bareButton, H.NewObject(organizer, "Button"))
+H.check(bareButton._point[1] == "TOPLEFT" and bareButton._point[2] == bare,
+    "with no Filters found to move, it goes to the title bar's other end")
+communities:Hide()
 H.Click(toTab)
 world:RunFor(1)
-H.check(page:IsShown() and tab:GetChecked(), "which opens the guild window on our tab")
-organizer.env.CalendarFrame = nil
+H.check(communities:IsShown() and page:IsShown() and tab:GetChecked(), "it opens the guild window on our tab")
+H.Click(toTab)
+H.check(not communities:IsShown(), "and closes it when it shows")
+communities:Show()
+organizer.env.CalendarFrame, organizer.env.ToggleGuildFrame = nil, nil
 communities:SetDisplayMode("ROSTER")
 Errors("the calendar's buttons")
 

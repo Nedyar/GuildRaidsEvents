@@ -11,7 +11,8 @@ linked to the game's calendar.
   confirmed: not those tentative, on standby or out), and your answer.
   **Calendar**, above it on the right (in an event's view too), opens or
   closes the game's calendar; and the calendar's window has a button with
-  the tab's icon, beside its close button, that opens the tab.
+  the tab's icon, beside its close button (its Filters moved left of it),
+  that opens the guild window on the tab, or closes it.
 - **An event's view**: click a row. Its sign-ups show in three columns, tanks,
   healers and damage, each name in its class colour, with its state
   (in the game calendar's colours: signed up and confirmed in green, standby
