@@ -265,6 +265,8 @@ local function ShowPage()
         hiddenChatBar = chatBar
     end
     page:Show()
+    -- Only what is new now is marked: what was last time, seen since, not.
+    ns.EventList.ForgetMarks()
     RefreshPage()
 end
 

@@ -6,10 +6,10 @@
 --     a moderator last left it: a moderator's change travels in their own
 --     record (pe), and the newest of all counts (Rights.lua says who may).
 --   - Deleting an event deletes it for everyone, as the game's calendar
---     does: its organizer takes it out of their record; a moderator's
---     deletion travels in their own (pe, with x) and counts whatever comes
---     after it, and the organizer's client then takes it out of theirs
---     (Events.Purge). There is no getting a deleted event back.
+--     does: its organizer takes it out of their record; a moderator's or an
+--     officer's deletion travels in their own (pe, with x) and counts
+--     whatever comes after it, and the organizer's client then takes it out
+--     of theirs (Events.Purge). There is no getting a deleted event back.
 --   - Its moderators, as in the game's calendar: the organizer names them,
 --     and a moderator may name or take back others (never the organizer).
 --     Each naming travels in its maker's record (mo); every client replays
@@ -201,10 +201,11 @@ local function Build()
     for guid, record in pairs(guild.members) do
         for key, patch in pairs(record.pe or {}) do
             local event = events[key]
-            if event and guid ~= event.owner and ns.Rights.MayManage(guid, event) then
+            if event and guid ~= event.owner then
                 if patch.x then
-                    removed[key] = true
-                elseif patch.at > event.at then
+                    -- A deletion, by a moderator or an officer.
+                    removed[key] = removed[key] or ns.Rights.MayDelete(guid, event)
+                elseif patch.at > event.at and ns.Rights.MayManage(guid, event) then
                     for _, field in ipairs(FIELDS) do
                         event[field] = patch[field]
                     end
@@ -336,12 +337,36 @@ function Events.Statuses(event)
     return statuses
 end
 
+-- The roles given in an event (ra): { [GUID] = { ro, at } }, the newest
+-- each, among those who may manage it and each member's own.
+function Events.GivenRoles(event)
+    local roles = {}
+    local guild = ns.Data.CurrentGuild(false)
+    if not guild then
+        return roles
+    end
+    for guid, record in pairs(guild.members) do
+        local list = record.ra and record.ra[event.key]
+        if list then
+            local manager = ns.Rights.MayManage(guid, event)
+            for target, role in pairs(list) do
+                local current = roles[target]
+                if (manager or target == guid) and (not current or role.at > current.at) then
+                    roles[target] = { ro = role.ro, at = role.at }
+                end
+            end
+        end
+    end
+    return roles
+end
+
 -- An event's sign-ups as shown, in the order they were made: { guid,
 -- name, class, level, st, ro, no, at, external, status, auto } (status:
 -- Events.NONE... PROVISIONAL; auto: the event set it by itself). The answer
--- and the status are made one as the game's calendar has it (States.Merge).
+-- and the status are made one as the game's calendar has it (States.Merge);
+-- the role is the answer's, or one given since.
 function Events.SignUps(event)
-    local statuses = Events.Statuses(event)
+    local statuses, roles = Events.Statuses(event), Events.GivenRoles(event)
     local list = {}
     for guid, answer in pairs(Events.Answers(event.key)) do
         local entry = ns.Roster.members[guid]
@@ -349,6 +374,10 @@ function Events.SignUps(event)
         answer.class = entry and entry.c
         answer.level = entry and entry.l
         answer.st, answer.status = ns.States.Merge(answer, statuses[guid])
+        local given = roles[guid]
+        if given and given.at > (answer.at or 0) then
+            answer.ro = given.ro
+        end
         list[#list + 1] = answer
     end
     table.sort(list, function(a, b)
@@ -382,22 +411,18 @@ function Events.SignUps(event)
     return list
 end
 
--- How many are in each role, those tentative too (all but those left out),
--- and how many of them are tentative: { [role] = count }, tentative.
+-- How many are in each role, those signed up or confirmed only (not those
+-- tentative, on standby or out): { [role] = count }.
 function Events.Counts(signUps)
-    local States = ns.States
-    local counts, tentative = { 0, 0, 0 }, 0
+    local counts = { 0, 0, 0 }
     for _, signUp in ipairs(signUps) do
-        local isTentative = States.IsTentative(signUp)
-        if States.Goes(signUp) or isTentative then
+        local state = ns.States.Of(signUp)
+        if state == "signed" or state == "confirmed" then
             local role = signUp.ro or Events.DAMAGE
             counts[role] = counts[role] + 1
         end
-        if isTentative then
-            tentative = tentative + 1
-        end
     end
-    return counts, tentative
+    return counts
 end
 
 -- The player's own sign-up to an event (from Events.SignUps), or nil.
@@ -559,12 +584,14 @@ local function OwnBase(record, key)
 end
 
 -- Changes an event the player may manage: fields as for Events.Create
--- (deleting: a moderator deletes it). Its organizer changes it in their
--- record, a moderator in their own (pe). Returns whether it could.
+-- (deleting: a moderator or an officer deletes it). Its organizer changes
+-- it in their record, anyone else in their own (pe). Returns whether it
+-- could.
 local function Change(key, fields, deleting)
     local event = Events.Get(key)
     local record = Own()
-    if not event or not record or not ns.Rights.MayIManage(event) then
+    local may = deleting and ns.Rights.MayIDelete or ns.Rights.MayIManage
+    if not event or not record or not may(event) then
         return false
     end
     local changed = Fields(fields, NextChange(event.at), deleting)
@@ -611,7 +638,7 @@ local function RemoveOwn(record, key)
     if #record.ev == 0 then
         record.ev = nil
     end
-    for _, field in ipairs({ "su", "ms", "xs", "mo" }) do
+    for _, field in ipairs({ "su", "ms", "xs", "mo", "ra" }) do
         if record[field] then
             record[field][key] = nil
         end
@@ -620,8 +647,8 @@ local function RemoveOwn(record, key)
     return true
 end
 
--- Deletes an event the player may manage, for everyone. Returns whether it
--- did.
+-- Deletes an event the player may delete (Rights.MayDelete), for everyone.
+-- Returns whether it did.
 function Events.Delete(key)
     local event = Events.Get(key)
     local record = Own()
@@ -669,12 +696,18 @@ function Events.Answer(key, st, role, note)
 end
 
 -- Gives a sign-up a status (Events.NONE takes it back), as someone who may
--- manage the event.
+-- manage the event (its organizer's too, as in the game's calendar).
 function Events.SetStatus(key, guid, st)
     local event = Events.Get(key)
     local record = Own()
     if not event or not record or not ns.Rights.MayIManage(event) then
         return false
+    end
+    if guid == ns.playerGUID and guid ~= event.owner and st == Events.OUT then
+        -- A moderator who puts themselves out leaves the event's list, as
+        -- in the game's calendar (seen in game): their sign-up goes, and
+        -- their moderation with it.
+        return Events.Answer(key, nil)
     end
     if not HasRoom(record.ms, key, LIMITS.statusEvents) or not HasRoom(record.ms and record.ms[key], guid, LIMITS.perEvent) then
         return false
@@ -702,6 +735,33 @@ function Events.SetModerator(key, guid, on)
     record.mo[key] = record.mo[key] or {}
     local old = record.mo[key][guid]
     record.mo[key][guid] = { on = on == true, at = NextChange(old and old.at) }
+    Touch(record, "statuses")
+    return true
+end
+
+-- Whether the player may change that sign-up's role: anyone's, managing
+-- the event; their own, always.
+function Events.MayChangeRole(event, guid)
+    return event ~= nil and guid ~= nil and (guid == ns.playerGUID or ns.Rights.MayIManage(event))
+end
+
+-- Changes a sign-up's role (Events.MayChangeRole), in the player's record
+-- (ra), newer than the answer it changes: the answer itself, and so the
+-- order they signed up in, stays.
+function Events.SetRole(key, guid, role)
+    local event = Events.Get(key)
+    local record = Own()
+    if not record or not Events.MayChangeRole(event, guid) or not Events.ROLE_FIELD[role] then
+        return false
+    end
+    if not HasRoom(record.ra, key, LIMITS.statusEvents) or not HasRoom(record.ra and record.ra[key], guid, LIMITS.perEvent) then
+        return false
+    end
+    record.ra = record.ra or {}
+    record.ra[key] = record.ra[key] or {}
+    local old = record.ra[key][guid]
+    local answer = Events.Answers(key)[guid]
+    record.ra[key][guid] = { ro = role, at = math.max(NextChange(old and old.at), (answer and answer.at or 0) + 1) }
     Touch(record, "statuses")
     return true
 end
@@ -804,7 +864,7 @@ function Events.Tidy()
             record[field] = nil
         end
     end
-    for _, field in ipairs({ "ms", "xs", "mo" }) do
+    for _, field in ipairs({ "ms", "xs", "mo", "ra" }) do
         for key, list in pairs(record[field] or {}) do
             local newest = 0
             for _, item in pairs(list) do
@@ -832,7 +892,11 @@ function Events.Init()
         end)
     end
     ns.On("DataChanged", Changed)
-    ns.On("RosterUpdated", Changed)
+    ns.On("RosterUpdated", function()
+        -- Ranks' permissions may have changed too.
+        ns.Rights.ForgetRanks()
+        Changed()
+    end)
     C_Timer.After(30, Events.Tidy)
     C_Timer.NewTicker(600, Events.Tidy)
 end

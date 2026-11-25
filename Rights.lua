@@ -8,6 +8,9 @@
 --     its organizer and its moderators (Events.IsModerator), as in the
 --     game's calendar. The game itself still has the last word on each
 --     change (Calendar.lua: the calendar first).
+--   - Deleting any event: also the guild master and the members whose rank
+--     has the game's "Has officer privileges", as the game's calendar lets
+--     them (seen in game). Their rank gives them nothing else.
 --   - Bringing in sign-ups made outside the game (API.lua): the characters
 --     the guild master chose in the addon's options.
 --
@@ -27,9 +30,42 @@ ns.Rights = Rights
 -- { name... }. The options' page of bridge characters shows only then.
 Rights.bridges = {}
 
+-- The game's rank permission "Has officer privileges" (GuildControlUI's
+-- OfficerCheckbox).
+Rights.OFFICER_FLAG = 22
+
+local rankCache = {}  -- [rank index] = whether the rank has it
+
+function Rights.ForgetRanks()
+    wipe(rankCache)
+end
+
+-- rankIndex: as the roster gives it, 0 for the guild master.
+function Rights.IsOfficerRank(rankIndex)
+    if rankIndex == 0 then
+        return true
+    elseif type(rankIndex) ~= "number" then
+        return false
+    end
+    local officer = rankCache[rankIndex]
+    if officer == nil then
+        local flags = C_GuildInfo and C_GuildInfo.GuildControlGetRankFlags
+            and ns.Try(C_GuildInfo.GuildControlGetRankFlags, rankIndex + 1)
+        officer = ns.CanRead(flags) and ns.Plain(flags[Rights.OFFICER_FLAG]) == true
+        rankCache[rankIndex] = officer
+    end
+    return officer
+end
+
 function Rights.IsGM(guid)
     local entry = guid and ns.Roster.members[guid]
     return entry ~= nil and entry.ri == 0
+end
+
+-- The guild master or an officer, by their rank in the roster.
+function Rights.IsOfficer(guid)
+    local entry = guid and ns.Roster.members[guid]
+    return entry ~= nil and Rights.IsOfficerRank(entry.ri)
 end
 
 -- Whether guid may change or delete the event, give its sign-ups a status
@@ -43,6 +79,15 @@ end
 
 function Rights.MayIManage(event)
     return Rights.MayManage(ns.playerGUID, event)
+end
+
+-- Whether guid may delete the event: those who manage it, and officers.
+function Rights.MayDelete(guid, event)
+    return Rights.MayManage(guid, event) or (event ~= nil and Rights.IsOfficer(guid))
+end
+
+function Rights.MayIDelete(event)
+    return Rights.MayDelete(ns.playerGUID, event)
 end
 
 -- Whether the game lets the current character add guild events.

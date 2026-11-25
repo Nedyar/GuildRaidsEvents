@@ -237,10 +237,19 @@ return function(H)
             local month, year = Month(offset)
             return DayEvents(client, year, month, day)[index]
         end
-        -- Its creator, or one of its moderators.
+        -- Its creator, one of its moderators, or the guild master or an
+        -- officer (seen in game).
         local function MayRemove(event)
             local mine = event.invites[client.guid]
-            return event.creator == client.guid or mine ~= nil and mine.modStatus == "MODERATOR"
+            if event.creator == client.guid or mine ~= nil and mine.modStatus == "MODERATOR" then
+                return true
+            end
+            for _, member in ipairs(world.roster) do
+                if member.guid == client.guid then
+                    return member.rankIndex == 0 or (world.officerRanks or {})[member.rankIndex] == true
+                end
+            end
+            return false
         end
         local function MyStatus(event)
             local invite = event.invites[client.guid]
@@ -558,7 +567,7 @@ return function(H)
             end,
             -- Only the open event (WoW Forever said false for one not
             -- open; its window offers Delete on the event selected), by
-            -- its creator or a moderator (seen in game). world.refuseRemove:
+            -- those MayRemove says. world.refuseRemove:
             -- the game says no all the same.
             ContextMenuEventCanRemove = function(offset, day, index)
                 local event = EventAt(offset, day, index)
@@ -586,6 +595,14 @@ return function(H)
                 end
             end,
         }
+        -- The cursor, for dragging (the tests say which frame it is over
+        -- with IsMouseOver), and the screen's scale.
+        env.GetCursorPosition = function()
+            return 0, 0
+        end
+        env.UIParent.GetEffectiveScale = function()
+            return 1
+        end
         -- Guild ranks with "Has officer privileges": client.world.officerRanks
         -- = { [rank index] = true }.
         env.C_GuildInfo.GuildControlGetRankFlags = function(rankOrder)

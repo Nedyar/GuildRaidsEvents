@@ -345,9 +345,13 @@ H.check(ns.Events.Get(key) ~= nil and not InCalendar().deleted, "missing for a m
 ns.EventForm.Open(key)
 world:RunFor(5)
 H.check(form:IsShown(), "the organizer changing it in the form")
+-- Deleted in the game's window, open: asking for the calendar's data then
+-- brought nothing in game (the addon waited until the window opened again).
+organizer.env.C_Calendar.OpenCalendar = function() end
 world:WindowDelete(calendarID)
 world:RunFor(1)
-H.eq(ns.Events.Get(key), nil, "deleted there: deleted from the addon at once, the calendar's data asked for again")
+organizer.env.C_Calendar.OpenCalendar = OpenCalendar
+H.eq(ns.Events.Get(key), nil, "deleted there: deleted from the addon at once, on the calendar's own news of it")
 H.check(not form:IsShown(), "the form changing it closes")
 world:RunFor(30)
 H.eq(member.ns.Events.Get(key), nil, "for everyone")
@@ -737,10 +741,25 @@ world:RunFor(60)
 H.check(member.ns.Events.SetStatus(awayKey, second.guid, 2), "the moderator puts them on standby")
 world:RunFor(30)
 H.eq(AwayInvite(second.guid).status, 5, "it reaches the calendar through the moderator's client")
+H.check(member.ns.Events.SetStatus(awayKey, organizer.guid, 2), "the moderator puts the organizer on standby too")
+world:RunFor(30)
+H.eq(AwayInvite(organizer.guid).status, 5, "the organizer's line in the calendar too, as the game lets a moderator")
+world:WindowStatus(awayID, organizer.guid, 8)
+world:RunFor(150)
+local creatorLine
+for _, signUp in ipairs(member.ns.Events.SignUps(member.ns.Events.Get(awayKey))) do
+    if signUp.guid == organizer.guid then
+        creatorLine = signUp
+    end
+end
+H.check(creatorLine ~= nil and member.ns.States.IsTentative(creatorLine),
+    "the organizer made tentative in the game's window comes into the addon through the moderator's client")
 world:Login(organizer)
 world:RunFor(60)
 ns = organizer.ns
 H.eq(ns.Events.Get(awayKey).ti, "Away raid (moved)", "the organizer, back, has it all")
+H.check(ns.States.IsTentative(ns.Events.Mine(ns.Events.Get(awayKey))) and AwayInvite(organizer.guid).status == 8,
+    "their own state too, as the calendar has it")
 world.errors = {}
 
 H.section("Calendar: a moderator who takes their sign-up back is one no more")
@@ -791,4 +810,28 @@ for _, base in ipairs(ns.Data.GetOwnRecord(false).ev or {}) do
     stillOwned = stillOwned or organizer.guid .. "/" .. base.id == awayKey
 end
 H.check(not stillOwned, "and the organizer's client takes it out of their record")
+world.errors = {}
+
+H.section("Calendar: an officer deletes any event, as the game's calendar lets them")
+ns.EventForm.Open(nil)
+local laterForm = ns.EventForm.Frame()
+laterForm.TitleBox:SetText("For an officer to delete")
+H.Click(laterForm.Save)
+world:RunFor(30)
+local forOfficer
+for _, one in ipairs(ns.Events.List("upcoming")) do
+    if one.ti == "For an officer to delete" then
+        forOfficer = one
+    end
+end
+H.check(forOfficer ~= nil and forOfficer.ci ~= 0, "an event of the organizer's, in the calendar")
+local officerSees = officer.ns.Events.Get(forOfficer.key)
+H.check(officerSees ~= nil and not officer.ns.Rights.MayIManage(officerSees) and officer.ns.Rights.MayIDelete(officerSees),
+    "an officer does not manage it, but may delete it")
+H.check(officer.ns.Calendar.Delete(forOfficer.key), "the officer deletes it")
+world:RunFor(10)
+H.check(world.calendar.events[forOfficer.ci].deleted and officer.ns.Events.Get(forOfficer.key) == nil,
+    "the calendar first, then gone from their addon")
+world:RunFor(30)
+H.check(ns.Events.Get(forOfficer.key) == nil and member.ns.Events.Get(forOfficer.key) == nil, "for everyone")
 world.errors = {}

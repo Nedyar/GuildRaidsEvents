@@ -3,8 +3,8 @@
 -- click: the clients of its organizer and of its moderators open the event
 -- and give each sign-up the addon's status and moderation, and take into
 -- the addon a status or a moderator given in the game's calendar window.
--- The organizer's client also keeps their own line (the game keeps an
--- event's creator in it).
+-- The organizer's line too (the game keeps an event's creator in it, and
+-- lets its moderators give it a status).
 local _, ns = ...
 
 local Calendar, Read, Organizer, Statuses = ns.Calendar, ns.CalendarRead, ns.CalendarOrganizer, ns.CalendarStatuses
@@ -17,27 +17,30 @@ local MIRROR_EVERY = 120     -- seconds between two looks at one event's sign-up
 local mirrored = {}          -- [key] = { at = GetTime(), signature } of the last look at its sign-ups
 
 -- The calendar status each sign-up of the event should have: [guid] =
--- status. The organizer's own line too.
+-- status; the organizer's line too. And the organizer's sign-up, or nil.
 local function WantedStatuses(event)
-    local wanted, mine = {}, nil
+    local wanted, creator = {}, nil
     for _, signUp in ipairs(Events.SignUps(event)) do
         wanted[signUp.guid] = States.CalendarStatusOf(signUp)
-        if signUp.guid == ns.playerGUID then
-            mine = signUp
+        if signUp.guid == event.owner then
+            creator = signUp
         end
     end
-    if event.owner == ns.playerGUID then
-        wanted[ns.playerGUID] = States.OrganizerCalendarStatus(mine)
-    end
-    return wanted
+    wanted[event.owner] = States.OrganizerCalendarStatus(creator)
+    return wanted, creator
 end
 
--- The organizer's own status given in the calendar, into the addon.
-local function TakeOwnStatus(key, event, status)
+-- The organizer's status given in the calendar, into the addon: as their
+-- own state on their client; as a status given them on a moderator's.
+local function TakeCreatorStatus(key, event, status)
     local state = States.FromCalendar(status)
-    local mine = Events.Mine(event)
-    if state then
+    if not state then
+        return
+    elseif event.owner == ns.playerGUID then
+        local mine = Events.Mine(event)
         States.SetMine(key, state, mine and mine.ro or ns.Roles.Default(), mine and mine.no, true)
+    elseif States.StatusOf(state) then
+        Events.SetStatus(key, event.owner, States.StatusOf(state))
     end
 end
 
@@ -98,7 +101,7 @@ end
 -- addon; then those whose calendar status or moderation is not the
 -- addon's: { guid, status } or { guid, moderator = true or false }.
 local function StatusChanges(key, event)
-    local wanted = WantedStatuses(event)
+    local wanted, creator = WantedStatuses(event)
     local statuses, moderators = Read.State("statuses"), Read.State("moderators")
     statuses[key] = statuses[key] or {}
     moderators[key] = moderators[key] or {}
@@ -106,28 +109,29 @@ local function StatusChanges(key, event)
     local changes = {}
     for index = 1, Plain(ns.Try(C_Calendar.GetNumInvites)) or 0 do
         local invite = ns.Try(C_Calendar.EventGetInvite, index)
-        local own = event.owner == ns.playerGUID and ns.CanRead(invite)
-            and (Plain(invite.inviteIsMine) == true or Plain(invite.guid) == ns.playerGUID)
-        if own then
-            -- The organizer's own line (they created the event). A
-            -- moderator's is one more line of the list.
-            local status, target = Plain(invite.inviteStatus), wanted[ns.playerGUID]
-            local agreed = agreedOf[ns.playerGUID] or Enum.CalendarStatus.Confirmed
-            if status == target and not Events.Mine(event) then
+        local isCreator = ns.CanRead(invite) and (Plain(invite.modStatus) == "CREATOR" or Plain(invite.guid) == event.owner
+            or (event.owner == ns.playerGUID and Plain(invite.inviteIsMine) == true))
+        if isCreator then
+            -- The organizer's line (they created the event): theirs, or one
+            -- their moderators give a status too.
+            local owner = event.owner
+            local status, target = Plain(invite.inviteStatus), wanted[owner]
+            local agreed = agreedOf[owner] or Enum.CalendarStatus.Confirmed
+            if status == target and not creator then
                 -- No answer of theirs in the addon, while the game keeps its
                 -- creator in the event: the calendar's line comes in.
-                agreedOf[ns.playerGUID] = status
-                TakeOwnStatus(key, event, status)
+                agreedOf[owner] = status
+                TakeCreatorStatus(key, event, status)
             elseif status == target then
-                agreedOf[ns.playerGUID] = status
+                agreedOf[owner] = status
             elseif target == agreed then
-                agreedOf[ns.playerGUID] = status
-                TakeOwnStatus(key, event, status)
-                Note("from the calendar", "took your status given there: " .. event.ti)
+                agreedOf[owner] = status
+                TakeCreatorStatus(key, event, status)
+                Note("from the calendar", "took the organizer's status given there: " .. event.ti)
             elseif target then
-                changes[#changes + 1] = { guid = ns.playerGUID, status = target }
+                changes[#changes + 1] = { guid = owner, status = target }
             end
-        elseif ns.CanRead(invite) and Plain(invite.modStatus) ~= "CREATOR" then
+        elseif ns.CanRead(invite) then
             local status, guid = Plain(invite.inviteStatus), Plain(invite.guid)
             -- Anyone in the list may moderate, whatever their status.
             local moderation = guid and ModeratorChange(key, event, guid, Plain(invite.modStatus) == "MODERATOR",

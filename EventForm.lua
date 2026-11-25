@@ -593,8 +593,10 @@ local function CreatePlaceRow()
 end
 
 -- The place's row follows the type: its label, and nothing to pick for a
--- meeting or another event.
+-- meeting or another event. So does the window's icon: the type's, as the
+-- event's view and its row show it.
 UpdatePlace = function()
+    form:SetPortraitToAsset(UI.TYPE_ICONS[chosen.ty] or UI.TYPE_ICONS[Events.OTHER])
     local pvp = chosen.ty == Events.PVP
     local any = #UI.PlacesFor(chosen.ty) > 0
     form.PlaceLabel:SetText(pvp and L["Battleground"] or L["Instance"])
@@ -633,7 +635,7 @@ local function Create()
     form:RegisterForDrag("LeftButton")
     form:SetScript("OnDragStart", form.StartMoving)
     form:SetScript("OnDragStop", form.StopMovingOrSizing)
-    form:SetPortraitToAsset("Interface\\Icons\\INV_Misc_Head_Dragon_01")
+    form:SetPortraitToAsset(UI.TYPE_ICONS[Events.OTHER])
     tinsert(UISpecialFrames, form:GetName())
     -- An addon window's close button does nothing in combat on WoW Forever
     -- (HideUIPanel), so it hides itself.

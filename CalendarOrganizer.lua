@@ -20,10 +20,10 @@ local DELETE_RETRY = 30      -- seconds between two tries to delete one calendar
 local BLOCKED_WAIT = 600     -- and more after the game refused it (it wanted a click)
 
 -- The calendar events of the events we watch found missing: [key] = { at =
--- GetTime(), reads }. Deleted only if still missing once the calendar's
--- data came again (asked for at once), not while it is still loading.
+-- GetTime(), reads }. Deleted only if the calendar's data came again since
+-- it last had them, and lacks them, not while it is still loading.
 local missing = {}
-local seen = {}              -- [key] = true: its calendar event was seen in this session
+local seen = {}              -- [key] = Read.reads when its calendar event was last seen, in this session
 local deleteTried = {}       -- [event ID] = GetTime() of the last try to delete it
 local adoptTried = {}        -- [event ID] = true: taken into the addon once already
 
@@ -171,7 +171,7 @@ function Organizer.Watch()
             -- at; it may still name one just deleted.
             local listed = not entry and not Read.InRange(event.tm) and Read.GuildEntry(event.ci)
             if entry then
-                seen[key] = true
+                seen[key] = Read.reads
             end
             if entry or listed then
                 missing[key] = nil
@@ -193,15 +193,16 @@ function Organizer.Watch()
             elseif Read.InRange(event.tm) then
                 -- Gone from the calendar: deleted there, as the event will
                 -- be for good. Only once the calendar's data came again
-                -- (asked for at once) and still lacks it, so not while it
-                -- is still loading.
-                local deleted = false
-                if not missing[key] then
+                -- since it last had it (the news of a deletion made in the
+                -- game's window, or asked for here) and lacks it, so not
+                -- while it is still loading. (Asking alone waited, in game,
+                -- until the game's window was closed and opened again.)
+                local first = missing[key] == nil
+                if first then
                     missing[key] = { at = clock, reads = Read.reads }
-                    ns.Try(C_Calendar.OpenCalendar)
-                elseif Read.reads > missing[key].reads then
-                    deleted = true
-                elseif clock - missing[key].at > 3 then
+                end
+                local deleted = Read.reads > (seen[key] or missing[key].reads)
+                if not deleted and (first or clock - missing[key].at > 3) then
                     missing[key].at = clock
                     ns.Try(C_Calendar.OpenCalendar)
                 end

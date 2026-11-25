@@ -51,6 +51,7 @@ local record = {
     ms = { ["Player-1-0000000A/t2abc"] = { ["Player-1-0000000C"] = { st = 2, at = now }, ["Player-1-0000000D"] = { st = 0, at = now } } },
     xs = { ["Player-1-0000000A/t2abc"] = { ["Player-1-0000000E"] = { st = 2, ro = 1, no = "from Discord", at = now } } },
     mo = { ["Player-1-0000000A/t2abc"] = { ["Player-1-0000000C"] = { on = true, at = now }, ["Player-1-0000000D"] = { on = false, at = now } } },
+    ra = { ["Player-1-0000000A/t2abc"] = { ["Player-1-0000000C"] = { ro = 1, at = now }, ["Player-1-0000000D"] = { ro = 3, at = now } } },
     cf = { t = now, br = { "Player-1-0000000F" } },
 }
 local key, back = Pack.ReadRecord(Pack.Reader(Pack.RecordString(GUID, record)))
@@ -60,14 +61,21 @@ local bare = { n = "Solo Name", t = now, av = 100 }
 _, back = Pack.ReadRecord(Pack.Reader(Pack.RecordString(GUID, bare)))
 H.check(back.ev == nil and back.su == nil and back.ms == nil and back.xs == nil and back.cf == nil and back.pe == nil,
     "a record with nothing reads with nothing")
--- As the versions before moderators packed it (they end before them).
+-- As the versions before roles given, and before moderators, packed it
+-- (they end before them: one byte each, an empty count).
 local bareString = Pack.RecordString(GUID, bare)
-local bareReader = Pack.Reader(bareString)
-local bareLength = bareReader:UInt()
-local older = Pack.Writer()
-older:Str(bareString:sub(bareReader.pos, bareReader.pos + bareLength - 2))
-local olderOK, olderGUID, olderBack = pcall(Pack.ReadRecord, Pack.Reader(older:Result()))
-H.check(olderOK and olderGUID == GUID and olderBack.mo == nil, "a record packed before moderators still reads")
+local function Older(dropped)
+    local bareReader = Pack.Reader(bareString)
+    local bareLength = bareReader:UInt()
+    local older = Pack.Writer()
+    older:Str(bareString:sub(bareReader.pos, bareReader.pos + bareLength - 1 - dropped))
+    return pcall(Pack.ReadRecord, Pack.Reader(older:Result()))
+end
+local olderOK, olderGUID, olderBack = Older(1)
+H.check(olderOK and olderGUID == GUID and olderBack.ra == nil, "a record packed before roles given still reads")
+olderOK, olderGUID, olderBack = Older(2)
+H.check(olderOK and olderGUID == GUID and olderBack.mo == nil and olderBack.ra == nil,
+    "and one packed before moderators")
 -- A later version's extra fields are skipped, and the next record still reads.
 local body = Pack.RecordString(GUID, record)
 local reader = Pack.Reader(body)
@@ -191,6 +199,12 @@ guild.members[other].pe = { [eventKey] = { ty = 0, ti = "Molten Core", tm = base
 Events.Invalidate()
 H.check(Events.Get(eventKey) ~= nil and Events.Deleted()[eventKey] == nil, "someone who is no moderator cannot delete it")
 guild.members[other].pe = nil
+H.check(ns.Rights.IsOfficer(officer) and not ns.Rights.MayManage(officer, Events.Get(eventKey)), "an officer, no moderator")
+guild.members[officer].pe = { [eventKey] = { ty = 0, ti = "Molten Core", tm = base.tm, ml = 0, at = now - 300, x = true } }
+Events.Invalidate()
+H.check(Events.Get(eventKey) == nil and Events.Deleted()[eventKey] ~= nil,
+    "deletes it all the same, as the game's calendar lets officers (and only that)")
+guild.members[officer].pe = nil
 guild.members[member].mo = { [eventKey] = { [officer] = { on = true, at = now - 80 } } }
 guild.members[officer].pe = { [eventKey] = { ty = 0, ti = "Molten Core", tm = base.tm, ml = 0, at = now - 200, x = true } }
 Events.Invalidate()
@@ -219,8 +233,8 @@ local signUps = Events.SignUps(event)
 H.eq(#signUps, 4, "four answers")
 H.eq(signUps[1].guid, solo.guid, "in the order they came")
 H.check(signUps[2].no == "can heal too" and signUps[2].name == "Officer Name", "with their note and name")
-local counts, tentative = Events.Counts(signUps)
-H.check(counts[1] == 2 and counts[2] == 0 and counts[3] == 2 and tentative == 1, "counted by role, the tentative too, who show there")
+local counts = Events.Counts(signUps)
+H.check(counts[1] == 2 and counts[2] == 0 and counts[3] == 1, "counted by role: those signed up or confirmed, not the tentative")
 H.eq(signUps[1].status, Events.NONE, "no status while the event does not confirm by itself")
 base.ac = true
 Refresh()
@@ -284,6 +298,22 @@ H.check(guild.members[solo.guid].su[created] == nil and guild.members[solo.guid]
     "with their sign-up and the statuses they gave in it")
 H.check(not Events.Change(created, { ty = 1, ti = "Scholomance", tm = Events.Now() + 86400, ml = 55 }), "and it cannot be changed again")
 created = Events.Create({ ty = 1, ti = "Scholomance", tm = Events.Now() + 86400, de = "", ml = 55 })
+H.check(Events.IsModerator(Events.Get(eventKey), solo.guid), "the guild master moderates a member's event")
+H.check(Events.SetStatus(eventKey, solo.guid, Events.OUT), "and puts themselves out")
+H.check(guild.members[solo.guid].su[eventKey] == nil and not Events.IsModerator(Events.Get(eventKey), solo.guid),
+    "which takes them out of its list, and their moderation with it, as in the game's calendar")
+guild.members[solo.guid].su[eventKey] = { st = 1, ro = 1, at = now }
+guild.members[solo.guid].mo[eventKey] = nil
+Events.Invalidate()
+H.check(Events.IsModerator(Events.Get(eventKey), solo.guid), "(signed up and named again)")
+H.check(Events.SetStatus(eventKey, member, Events.OUT), "a moderator gives the organizer a status too, as the game's calendar lets them")
+local organizerLine
+for _, signUp in ipairs(Events.SignUps(Events.Get(eventKey))) do
+    if signUp.guid == member then
+        organizerLine = signUp
+    end
+end
+H.check(organizerLine ~= nil and organizerLine.status == Events.OUT, "out, and still in its list: the game keeps its creator")
 H.check(Events.Change(eventKey, { ty = 0, ti = "Molten Core (by the master)", tm = event.tm, ml = 0 }), "a moderator (the guild master, named) changes a member's event")
 H.check(guild.members[solo.guid].pe[eventKey] ~= nil and Events.Get(eventKey).ti == "Molten Core (by the master)",
     "in their own record")
@@ -312,6 +342,33 @@ H.check(Events.Answer(created, Events.SIGNED, Events.DAMAGE, longNote .. "ñññ
 H.eq(Events.Mine(Events.Get(created)).no, longNote, "it is cut to 60 letters, not dropped")
 H.check(Events.Answer(created, nil) and Events.Mine(Events.Get(created)) == nil, "taking it back")
 H.check(Events.SetStatus(created, member, Events.CONFIRMED), "giving a status in one's event")
+-- Roles: the organizer (or a moderator) changes anyone's; a member, their own.
+local function SignUpOf(key, guid)
+    for _, signUp in ipairs(Events.SignUps(Events.Get(key))) do
+        if signUp.guid == guid then
+            return signUp
+        end
+    end
+end
+guild.members[member].su[created] = { st = 1, ro = 3, at = now }
+guild.members[other].su[created] = { st = 1, ro = 3, at = now }
+Events.Invalidate()
+H.check(Events.SetRole(created, member, Events.TANK), "the organizer changes a sign-up's role")
+H.eq(SignUpOf(created, member).ro, Events.TANK, "a tank now, for everyone")
+H.eq(guild.members[member].su[created].at, now, "their answer untouched: the order they signed up in stays")
+H.eq(Events.Counts(Events.SignUps(Events.Get(created)))[Events.TANK], 1, "and counted as one")
+guild.members[member].su[created] = { st = 1, ro = 2, at = now + 50 }
+Events.Invalidate()
+H.eq(SignUpOf(created, member).ro, Events.HEALER, "the member's newer answer, with another role, wins in turn")
+guild.members[other].ra = { [created] = { [member] = { ro = 1, at = now + 60 }, [other] = { ro = 2, at = now + 60 } } }
+Events.Invalidate()
+H.eq(SignUpOf(created, member).ro, Events.HEALER, "a member who does not manage it changes no one else's")
+H.eq(SignUpOf(created, other).ro, Events.HEALER, "but their own, yes")
+H.check(not Events.SetRole(created, member, 9), "no role that is not one")
+H.check(Events.MayChangeRole(Events.Get(created), solo.guid) and Events.MayChangeRole(Events.Get(created), member),
+    "the organizer may change their own and anyone's")
+guild.members[other].ra, guild.members[other].su[created] = nil, nil
+Events.Invalidate()
 H.check(not Events.Create({ ty = 9, ti = "Bad", tm = Events.Now() + 86400 }), "an event with bad fields is not created")
 local beforeMany = #guild.members[solo.guid].ev
 local allMade = true

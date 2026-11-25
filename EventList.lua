@@ -3,8 +3,8 @@
 -- week, the latest first. Each row: the event type's icon, the title, when
 -- it is, its type and organizer, how many signed up in each role, and the
 -- player's answer. The notification mark shows on the rows of upcoming
--- events the player has not seen nor answered; showing a row sees it. A
--- click on a row opens the event (EventView.lua).
+-- events the player had not seen when the tab opened, until they answer;
+-- showing a row sees it. A click on a row opens the event (EventView.lua).
 local _, ns = ...
 local L = ns.L
 
@@ -14,6 +14,14 @@ ns.EventList = EventList
 local Events, UI = ns.Events, ns.UI
 
 local ROW_HEIGHT = 50
+
+-- The events whose rows showed them new (not seen) since the tab opened:
+-- [key] = true. They keep the mark until it opens again.
+local marked = {}
+
+function EventList.ForgetMarks()
+    wipe(marked)
+end
 
 -- The places of a role in a count: "3/5", or "3" with no limit.
 local function Places(count, places)
@@ -104,16 +112,20 @@ local function InitRow(row, element)
     row.When:SetText(L["%s  ·  %s  ·  by %s"]:format(UI.DateText(event.tm), UI.KindText(event),
         Events.MemberName(event.owner) or "?"))
     row.Counts:SetText(EventList.CountsText(event, signUps))
-    row.Mine:SetText(EventList.MineText(Events.Mine(event, signUps)))
+    local mine = Events.Mine(event, signUps)
+    row.Mine:SetText(EventList.MineText(mine))
     local unsent = ns.Calendar.Unsent(event)
     local blocked = unsent and ns.Calendar.SendBlocked() or nil
     row.Send:SetShown(unsent)
     row.Send:SetEnabled(unsent and not blocked)
     row.Send.reason = blocked or L["Not in the game's calendar yet: this click creates it there."]
     row.Counts:SetPoint("RIGHT", unsent and row.Send or row, unsent and "LEFT" or "RIGHT", unsent and -6 or -30, 0)
-    row.Mark:SetShown(UI.IsUnseen(event))
-    -- Shown, so seen: the mark stays on the row until the list is shown
-    -- again, and goes from the tab at once.
+    -- Shown, so seen: the mark goes from the tab at once, and stays on the
+    -- row while the tab stays open (until it is answered).
+    if UI.IsUnseen(event) then
+        marked[event.key] = true
+    end
+    row.Mark:SetShown(marked[event.key] == true and mine == nil)
     if UI.MarkSeen(event.key) then
         ns.Fire("MarksChanged")
     end

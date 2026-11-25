@@ -77,6 +77,11 @@ H.check(row.Mine:GetText():find("Not signed up", 1, true) ~= nil, "and the playe
 H.check(row.Mark:IsShown(), "the mark on the row of an event not seen")
 world:RunFor(2)
 H.check(not Tab(member).Badge:IsShown(), "seen: the tab's mark goes")
+member.ns.EventList.InitRow(row, list.elements[1])
+H.check(row.Mark:IsShown(), "its row keeps the mark while the tab stays open: what is new shows")
+member.ns.EventList.ForgetMarks()
+member.ns.EventList.InitRow(row, list.elements[1])
+H.check(not row.Mark:IsShown(), "the tab opened again, it is new no more")
 
 H.section("UI: an event")
 member.ns.EventView.Open(key)
@@ -111,7 +116,17 @@ H.check(view.Mine:GetText():find("Healer", 1, true) ~= nil, "and their answer un
 local nameButton = view.Columns[2].Names[1]
 nameButton:GetScript("OnEnter")(nameButton)
 local tipLines = member.env.GameTooltip._lines
-H.check(tipLines[#tipLines] == "late 10 min", "pointing at the name shows the note")
+local function HasLine(lines, text)
+    for _, line in ipairs(lines) do
+        if line == text then
+            return true
+        end
+    end
+    return false
+end
+H.check(HasLine(tipLines, "late 10 min"), "pointing at the name shows the note")
+H.check(HasLine(tipLines, "Right-click for its menu.") and HasLine(tipLines, "Drag it to another column to change its role."),
+    "and, being their own, that they may change its role")
 -- A long note with no spaces was cut short with "..." in the tooltip: a
 -- word wider than a line goes whole on a line of its own, and the tooltip
 -- widens to it (the tests measure 6 pixels a byte, so 36 in 220).
@@ -134,7 +149,7 @@ member.ns.Events.Answer(key, 1, 2, digits)
 member.ns.EventView.Refresh()
 nameButton:GetScript("OnEnter")(nameButton)
 tooltip.AddLine = addLine
-H.check(tooltip._lines[#tooltip._lines] == digits and not wrapped[digits],
+H.check(HasLine(tooltip._lines, digits) and not wrapped[digits],
     "in the tooltip, whole and unwrapped: the tooltip widens to it")
 H.Click(view.Back)
 H.check(not view:IsShown() and list:IsShown(), "Back shows the list again")
@@ -150,14 +165,17 @@ H.check(orgView.Delete:GetText() == "Delete event" and orgView.Delete._point[2] 
     and orgView.Edit._point[2] == orgView.Delete, "Delete event left of Back, Edit left of it")
 local healer = orgView.Columns[2].Names[1]
 H.check(healer.signUp ~= nil and healer.signUp.guid == member.guid, "the member's sign-up is in the healers' column")
+organizer.contextMenu = nil
 H.Click(healer)
+H.eq(organizer.contextMenu, nil, "a left click opens nothing")
+H.Click(healer, "RightButton")
 local menu = organizer.contextMenu
-H.check(menu ~= nil and H.MenuEntry(menu, "Confirmed") ~= nil, "a click on it opens its menu of statuses")
+H.check(menu ~= nil and H.MenuEntry(menu, "Confirmed") ~= nil, "a right-click on it opens its menu of statuses")
 H.MenuEntry(menu, "Confirmed").setSelected()
 world:RunFor(30)
 local seen = member.ns.Events.Mine(member.ns.Events.Get(key))
 H.eq(seen.status, 1, "the member is confirmed, for everyone")
-H.Click(healer)
+H.Click(healer, "RightButton")
 menu = organizer.contextMenu
 H.check(H.MenuEntry(menu, "Set moderator") ~= nil, "the menu also names a moderator, as the game's calendar does")
 H.MenuEntry(menu, "Set moderator").callback()
@@ -166,7 +184,7 @@ H.check(member.ns.Rights.MayIManage(member.ns.Events.Get(key)), "named: the memb
 ns.EventView.Refresh()
 H.check(orgView.Columns[2].Names[1].Text:GetText():find("UI-Group-AssistantIcon", 1, true) ~= nil,
     "marked as the game's calendar marks its moderators")
-H.Click(healer)
+H.Click(healer, "RightButton")
 H.MenuEntry(organizer.contextMenu, "Clear moderator").callback()
 world:RunFor(30)
 H.check(not member.ns.Rights.MayIManage(member.ns.Events.Get(key)), "taken back: no longer")
@@ -190,9 +208,11 @@ H.check(not view.SignUp:IsEnabled() and not view.Tentative:IsEnabled() and view.
 H.eq(view.Tentative.reason, "To change your answer, remove your sign-up and wait for the event to show again in your calendar (about an hour, or when you log in again).", "and the buttons say so")
 H.check(view.Mine:GetText():find("Out", 1, true) ~= nil, "and reads Out")
 organizer.contextMenu = nil
-orgView._scripts.OnHyperlinkClick(orgView, "gre:" .. member.guid)
+orgView._scripts.OnHyperlinkClick(orgView, "gre:" .. member.guid, "Member Name", "LeftButton")
+H.eq(organizer.contextMenu, nil, "a left click on the name there opens nothing")
+orgView._scripts.OnHyperlinkClick(orgView, "gre:" .. member.guid, "Member Name", "RightButton")
 H.check(organizer.contextMenu ~= nil and H.MenuEntry(organizer.contextMenu, "Confirmed") ~= nil,
-    "a click on the name there opens its menu of statuses")
+    "a right-click on the name there opens its menu of statuses")
 H.MenuEntry(organizer.contextMenu, "Confirmed").setSelected()
 world:RunFor(30)
 H.eq(member.ns.Events.Mine(member.ns.Events.Get(key)).status, 1, "confirmed again")
@@ -214,7 +234,7 @@ H.check(ns.States.IsTentative(MineOf(organizer)) and DamageName(organizer.guid) 
 H.check(DamageName(organizer.guid).Text:GetText():find("(Tentative)", 1, true) ~= nil,
     "with their state by the name, though it is their answer and not a status given")
 organizer.contextMenu = nil
-H.Click(DamageName(organizer.guid))
+H.Click(DamageName(organizer.guid), "RightButton")
 H.MenuEntry(organizer.contextMenu, "Confirmed").setSelected()
 world:RunFor(2)
 ns.EventView.Refresh()
@@ -230,13 +250,13 @@ world:RunFor(2)
 H.check(ns.States.IsTentative(MineOf(organizer)), "answering Tentative again after it makes them tentative")
 ns.EventView.Refresh()
 organizer.contextMenu = nil
-H.Click(DamageName(organizer.guid))
+H.Click(DamageName(organizer.guid), "RightButton")
 H.MenuEntry(organizer.contextMenu, "Confirmed").setSelected()
 world:RunFor(2)
 organizer.contextMenu = nil
 for _, name in ipairs(orgView.Columns[2].Names) do
     if name:IsShown() and name.signUp and name.signUp.guid == member.guid then
-        H.Click(name)
+        H.Click(name, "RightButton")
     end
 end
 H.MenuEntry(organizer.contextMenu, "Tentative").setSelected()
@@ -338,9 +358,13 @@ H.eq(ns.Events.Get(key).ti, "Molten Core!", "Save changes it")
 H.check(not form:IsShown(), "and closes the form")
 H.Click(orgView.Back)
 H.check(page.New:IsShown(), "New event shows for a rank that may add guild events")
+form.SetPortraitToAsset = function(self, path)
+    self._portrait = path
+end
 H.Click(page.New)
 H.check(form:IsShown() and form.TitleBox:GetText() == "", "it opens an empty form")
 H.eq(form.Type._text, "Other", "an event of type Other by default")
+H.eq(form._portrait, "Interface\\Calendar\\UI-Calendar-Event-Other", "the window's icon is its type's")
 H.check(not form.PlaceBox:IsEnabled(), "with no place to pick")
 H.Click(form.Save)
 H.check(form:IsShown() and form.Error:GetText() ~= "", "without a title it says why and stays")
@@ -366,6 +390,7 @@ local today = ns.Events.DateOf(ns.Events.Now())
 local picked = ns.Events.DateOf(ns.Events.Naive(today.year, today.month, today.day, 0, 0) + 3 * 86400)
 H.check(form.DayButton:GetText():find(tostring(picked.day), 1, true) ~= nil, "and the button shows the day picked")
 H.MenuEntry(H.MenuOf(form.Type), "Dungeon").setSelected()
+H.eq(form._portrait, "Interface\\LFGFrame\\LFGIcon-Dungeon", "and changes with it")
 H.check(form.PlaceBox:IsEnabled() and form.PlaceBox:GetText() == "Sima Ígnea", "a dungeon starts with the lowest one")
 form.PlaceBox._scripts.OnEditFocusGained(form.PlaceBox)
 H.eq(#ns.EventForm.PlaceRows(), 5, "the place's box lists every dungeon")
@@ -510,13 +535,96 @@ for _, one in ipairs(ns.Events.List("upcoming")) do
 end
 ns.EventView.Open(waitingKey)
 local addsThen = AddEvents()
+organizer.confirm = nil
 H.Click(orgView.Delete)
-H.eq(ns.Events.Get(waitingKey), nil, "one not in the calendar yet: Delete event deletes it from the addon at once")
+H.check(organizer.confirm ~= nil and ns.Events.Get(waitingKey) ~= nil, "Delete event asks first, and deletes nothing yet")
+H.check(organizer.confirm.text_arg1:find("Weekly two", 1, true) and organizer.confirm.text_arg1:find("for everyone", 1, true),
+    "naming the event, and that it goes for everyone")
+organizer.confirm.callback()
+H.eq(ns.Events.Get(waitingKey), nil, "accepted, one not in the calendar yet is deleted from the addon at once")
 world:RunFor(5)
 H.check(not orgView:IsShown(), "and the view goes back to the list")
 H.eq(AddEvents(), addsThen, "nothing created in the calendar")
 ns.EventView.Close()
 Errors("weekly events")
+
+H.section("UI: roles changed from the list")
+local function NameIn(someView, role, guid)
+    for _, name in ipairs(someView.Columns[role].Names) do
+        if name:IsShown() and name.signUp and name.signUp.guid == guid then
+            return name
+        end
+    end
+end
+-- The cursor over one column (none: nil).
+local function Over(someView, wanted)
+    for role, column in ipairs(someView.Columns) do
+        column.IsMouseOver = function()
+            return role == wanted
+        end
+    end
+end
+local function Drag(name)
+    name._scripts.OnDragStart(name)
+    name._scripts.OnDragStop(name)
+end
+local function Picked(dropdown)
+    for _, entry in ipairs(H.MenuOf(dropdown)) do
+        if entry.isSelected(entry.data) then
+            return entry.text
+        end
+    end
+end
+H.check(member.ns.Events.Answer(scholo.key, 1, 2), "a member signs up as healer")
+world:RunFor(30)
+member.ns.EventView.Open(scholo.key)
+H.eq(Picked(view.Role), "Healer", "their view open, their role picked")
+ns.EventView.Open(scholo.key)
+local healerName = NameIn(orgView, 2, member.guid)
+H.check(healerName ~= nil, "in the healers' column")
+Over(orgView, nil)
+Drag(healerName)
+H.eq(member.ns.Events.Mine(member.ns.Events.Get(scholo.key)).ro, 2, "dropped over no column: nothing changes")
+Over(orgView, 1)
+Drag(healerName)
+world:RunFor(30)
+ns.EventView.Refresh()
+H.check(NameIn(orgView, 1, member.guid) ~= nil, "the organizer drags the name to the tanks' column: a tank")
+H.eq(member.ns.Events.Mine(member.ns.Events.Get(scholo.key)).ro, 1, "for everyone, the member too")
+member.ns.EventView.Refresh()
+H.eq(Picked(view.Role), "Tank", "the role picked in the member's open view follows it")
+Over(view, 3)
+Drag(NameIn(view, 1, member.guid))
+world:RunFor(2)
+H.eq(member.ns.Events.Mine(member.ns.Events.Get(scholo.key)).ro, 3, "the member drags their own name: damage")
+H.eq(member.ns.Roles.Default(), 3, "their choice, remembered")
+local organizerName
+for role = 1, 3 do
+    organizerName = organizerName or NameIn(view, role, organizer.guid)
+end
+member.contextMenu = nil
+H.Click(organizerName, "RightButton")
+H.eq(member.contextMenu, nil, "no menu on someone else's name for a member")
+local organizerRole = ns.Events.Mine(ns.Events.Get(scholo.key)).ro
+Over(view, organizerRole == 2 and 1 or 2)
+Drag(organizerName)
+world:RunFor(30)
+H.eq(ns.Events.Mine(ns.Events.Get(scholo.key)).ro, organizerRole, "nor dragging it")
+member.ns.EventView.Refresh()
+H.Click(NameIn(view, 3, member.guid), "RightButton")
+H.check(member.contextMenu ~= nil and H.MenuEntry(member.contextMenu, "Tank") ~= nil
+    and H.MenuEntry(member.contextMenu, "Confirmed") == nil, "on their own, a menu with their role only")
+H.MenuEntry(member.contextMenu, "Healer").setSelected()
+world:RunFor(2)
+H.eq(member.ns.Events.Mine(member.ns.Events.Get(scholo.key)).ro, 2, "which changes it")
+for _, someView in ipairs({ view, orgView }) do
+    for _, column in ipairs(someView.Columns) do
+        column.IsMouseOver = nil
+    end
+end
+member.ns.EventView.Close()
+ns.EventView.Close()
+Errors("roles")
 
 H.section("UI: the game's limit of events created")
 local madeByOrganizer = 0
@@ -557,7 +665,9 @@ ns.EventView.Open(scholo.key)
 H.check(orgView.Delete:IsEnabled() and orgView.Delete.reason == "Deletes this event, for everyone.",
     "Delete event says what it does")
 H.check(orgView.Title._point[2] == orgView.Edit, "the title stops before Edit")
+organizer.confirm = nil
 H.Click(orgView.Delete)
+organizer.confirm.callback()
 ns.EventView.UpdateControls()
 H.check(ns.Events.Get(scholo.key) == nil or not orgView.Delete:IsEnabled() and orgView.Delete.reason == "Syncing the calendar...",
     "off while the calendar deletes it")

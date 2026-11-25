@@ -161,6 +161,13 @@ local function CleanModerator(moderator, now)
     return { on = moderator.on, at = moderator.at }
 end
 
+local function CleanRole(role, now)
+    if type(role) ~= "table" or not Lib.IsCount(role.ro, 3) or role.ro < 1 or not IsTime(role.at, now) then
+        return nil
+    end
+    return { ro = role.ro, at = role.at }
+end
+
 -- The string keys of a table, sorted: what goes over a limit is the same
 -- on every client.
 local function SortedKeys(map)
@@ -262,6 +269,7 @@ function Data.CleanRecord(record, now)
     clean.ms = CleanNested(record.ms, CleanStatus, now)
     clean.xs = CleanNested(record.xs, CleanAnswer, now)
     clean.mo = CleanNested(record.mo, CleanModerator, now)
+    clean.ra = CleanNested(record.ra, CleanRole, now)
     if record.cf ~= nil then
         clean.cf = CleanOptions(record.cf, now)
     end

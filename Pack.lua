@@ -57,7 +57,10 @@ Pack.LIMITS = {
 --       = { st = 0 none, 1 confirmed, 2 standby, 3 out, 4 tentative, at = time } } },
 --   mo = the moderators it named or took back, as organizer or moderator:
 --       { [key] = { [GUID] = { on = true or false, at = time } } } (packed
---       last, after cf: a record of an older version has none),
+--       after cf: a record of an older version has none),
+--   ra = the roles it gave sign-ups, as organizer or moderator, or its own
+--       by itself: { [key] = { [GUID] = { ro = role, at = time } } }
+--       (packed last, after mo: a record of an older version has none),
 --   xs = sign-ups made outside the game (by another addon, through the
 --       API) that it brought in: { [key] = { [GUID] = { st, ro, no, at } } },
 --   cf = the guild's options, from its guild master only: { t = time,
@@ -290,6 +293,15 @@ local function ReadModerator(reader)
     return { on = reader:Byte() == PRESENT, at = reader:UInt() }
 end
 
+local function WriteRole(writer, role)
+    writer:Byte(role.ro)
+    writer:UInt(role.at)
+end
+
+local function ReadRole(reader)
+    return { ro = reader:Byte(), at = reader:UInt() }
+end
+
 function Pack.WriteRecord(writer, guid, record)
     local body = Pack.Writer()
     body:Str(guid)
@@ -301,6 +313,7 @@ function Pack.WriteRecord(writer, guid, record)
     WriteAnswers(body, record)
     WriteOptions(body, record)
     WriteNested(body, record.mo, WriteModerator)
+    WriteNested(body, record.ra, WriteRole)
     writer:Str(body:Result())
 end
 
@@ -320,6 +333,9 @@ function Pack.ReadRecord(reader)
     -- Packed by an older version, the record ends here.
     if not reader:AtEnd() then
         record.mo = ReadNested(reader, LIMITS.statusEvents, "moderators", ReadModerator)
+    end
+    if not reader:AtEnd() then
+        record.ra = ReadNested(reader, LIMITS.statusEvents, "roles", ReadRole)
     end
     -- Anything after this was added by a later version.
     return guid, record
