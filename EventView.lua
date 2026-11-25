@@ -143,7 +143,12 @@ local function NameMenu(owner, signUp)
                 root:CreateRadio(UI.StatusName(status), function()
                     return signUp.status == status and not (signUp.auto and status ~= Events.NONE)
                 end, function()
-                    Events.SetStatus(event.key, signUp.guid, status)
+                    if event.cal then
+                        -- Made in the game's calendar: given there.
+                        ns.Calendar.GiveThere(event.key, signUp.guid, { status = States.CalendarStatusFor(status) })
+                    else
+                        Events.SetStatus(event.key, signUp.guid, status)
+                    end
                 end)
             end
             root:CreateDivider()
@@ -170,7 +175,11 @@ local function NameMenu(owner, signUp)
             root:CreateDivider()
             root:CreateButton(moderator and (CALENDAR_INVITELIST_CLEARMODERATOR or L["Clear moderator"])
                 or (CALENDAR_INVITELIST_SETMODERATOR or L["Set moderator"]), function()
-                Events.SetModerator(event.key, signUp.guid, not moderator)
+                if event.cal then
+                    ns.Calendar.GiveThere(event.key, signUp.guid, { moderator = not moderator })
+                else
+                    Events.SetModerator(event.key, signUp.guid, not moderator)
+                end
             end)
         end
     end)
@@ -570,8 +579,12 @@ function EventView.Create(parent)
     return view
 end
 
--- The details line: places, minimum level, weekly, confirms by itself.
+-- The details line: places, minimum level, weekly, confirms by itself; or
+-- that it was made in the game's calendar (it has none of those).
 local function DetailsText(event)
+    if event.cal then
+        return L["Made in the game's calendar, without the addon."]
+    end
     local parts = {}
     if (event.ml or 0) > 0 then
         parts[#parts + 1] = L["Level %d or higher"]:format(event.ml)

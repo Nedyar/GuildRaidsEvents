@@ -165,7 +165,9 @@ function Organizer.Watch()
         if manages then
             Landed(key, Read.Find(event.ci))
         end
-        if manages and event.tm > now and not Send.InFlight(key) then
+        -- (One made in the calendar is as the calendar has it, and goes
+        -- when it goes from there.)
+        if manages and not event.cal and event.tm > now and not Send.InFlight(key) then
             local entry = Read.Find(event.ci)
             -- The guild's list stands for events beyond the months looked
             -- at; it may still name one just deleted.
@@ -224,7 +226,10 @@ function Organizer.Watch()
 end
 
 -- The organizer's client: the guild events their character created in the
--- game's calendar window, into the addon as theirs.
+-- game's calendar window, into the addon as theirs, under the key everyone
+-- knows it by while no record has it (Events.CalendarMadeID): what was
+-- given to it meanwhile (answers, roles) stays. So too one they created
+-- before they ran the addon.
 function Organizer.Adopt()
     local used, now, strays = Read.UsedIDs(), Events.Now(), Read.State("strays")
     local mine = {}
@@ -243,7 +248,8 @@ function Organizer.Adopt()
                 and start and start > now
                 and not mine[tostring(Plain(ev.title)) .. "|" .. tostring(start)] then
             adoptTried[id] = true
-            local key = Events.Create({ ty = Read.TypeOf(Plain(ev.eventType)), ti = Plain(ev.title), tm = start, ml = 0 })
+            local key = Events.Create({ ty = Read.TypeOf(Plain(ev.eventType)), ti = Plain(ev.title), tm = start, ml = 0,
+                lk = Read.IsLocked(ev) or nil }, Events.CalendarMadeID(id))
             if key then
                 Events.SetCalendarID(key, id)
                 Organizer.Agree(key, Events.Get(key))
@@ -258,7 +264,7 @@ end
 function Organizer.ReconcileOpen(key)
     local event = Events.Get(key)
     local info = ns.Try(C_Calendar.GetEventInfo)
-    if not event or not ns.Rights.MayIManage(event) or Send.InFlight(key) or not ns.CanRead(info) then
+    if not event or event.cal or not ns.Rights.MayIManage(event) or Send.InFlight(key) or not ns.CanRead(info) then
         return
     end
     Reconcile(key, event, {

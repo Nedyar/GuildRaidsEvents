@@ -20,7 +20,9 @@
 -- answered; not the reader's own (their client takes it in itself), nor
 -- those whose answer is the addon's (one of their own, not taken back),
 -- nor the creator's of an event made in the addon (its organizer's client
--- keeps it in step). And the creator's GUID.
+-- keeps it in step). Of an event made in the calendar, every line, and
+-- its description: its statuses and moderators come from there. And the
+-- creator's GUID.
 local _, ns = ...
 
 local Calendar, Read, Lists = ns.Calendar, ns.CalendarRead, ns.CalendarLists
@@ -33,6 +35,14 @@ local OTHERS_EVERY = 900     -- and by any other
 local SHARE_WAIT = 5         -- seconds any other waits before it shares a list that changed
 
 local lastRead = {}          -- [event ID] = server time this client last read it
+local soon = {}              -- [event ID] = true: read it next, and share it at once (Lists.ReadSoon)
+
+-- The player just changed that calendar event (its description, say): its
+-- list is read at the next step, and shared at once.
+function Lists.ReadSoon(calendarID)
+    soon[calendarID] = true
+    Calendar.TickSoon()
+end
 
 -- Whether the player's client is the one that reads that calendar event
 -- every READ_EVERY: of the members online who run the addon (who shared
@@ -69,7 +79,9 @@ end
 -- Whether the line of that member is kept in an event's list (see the top
 -- of this file).
 local function Kept(event, guid, creator, guild)
-    if guid == ns.playerGUID or (creator and not event.cal) then
+    if event.cal then
+        return true
+    elseif guid == ns.playerGUID or creator then
         return false
     end
     local record = guild and guild.members[guid]
@@ -98,9 +110,10 @@ local function Same(a, b)
 end
 
 -- Reads the list of an event's calendar event, open now, and shares it if
--- it changed since anyone shared it. Not a list with no creator's line:
--- every event's has one, so it is not all there yet. Whether it was shared.
-function Lists.Take(event)
+-- it changed since anyone shared it (at once when urgent: the player just
+-- changed it there). Not a list with no creator's line: every event's has
+-- one, so it is not all there yet. Whether it was shared.
+function Lists.Take(event, urgent)
     if not event or event.ci == 0 or Plain(ns.Try(C_Calendar.IsEventOpen)) ~= true then
         return false
     end
@@ -144,9 +157,11 @@ function Lists.Take(event)
         end
         return false
     end
+    urgent = urgent or soon[event.ci]
+    soon[event.ci] = nil
     if Same(list, Events.CalendarList(event.ci)) then
         return false
-    elseif Lists.Elected(event.ci) then
+    elseif urgent or Lists.Elected(event.ci) then
         return Share()
     end
     -- Any other client waits a moment: the one the event picks may have
@@ -163,7 +178,20 @@ end
 local function EventToRead()
     local best
     local now, eventsNow = ns.Now(), Events.Now()
+    -- The events, and those made in the calendar whose creator is not
+    -- known yet (their list says who).
+    local candidates, known = {}, {}
     for _, event in pairs(Events.All()) do
+        candidates[#candidates + 1] = event
+        known[event.ci] = true
+    end
+    local used = Read.UsedIDs()
+    for _, made in ipairs(Read.MadeThere()) do
+        if not known[made.ci] and not used[made.ci] then
+            candidates[#candidates + 1] = { key = "?/" .. made.ci, ci = made.ci, ti = made.ti, tm = made.tm, cal = true }
+        end
+    end
+    for _, event in ipairs(candidates) do
         local entry = event.ci ~= 0 and event.tm > eventsNow and Read.Find(event.ci)
         if entry then
             local elected = Lists.Elected(event.ci)
@@ -172,7 +200,7 @@ local function EventToRead()
             end
             local newest = Events.CalendarList(event.ci)
             local last = math.max(lastRead[event.ci] or 0, newest and newest.at or 0)
-            local late = now - last - (elected and READ_EVERY or OTHERS_EVERY)
+            local late = soon[event.ci] and math.huge or now - last - (elected and READ_EVERY or OTHERS_EVERY)
             if late >= 0 and (not best or late > best.late) then
                 best = { event = event, entry = entry, late = late }
             end

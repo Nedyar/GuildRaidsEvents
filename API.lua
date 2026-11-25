@@ -25,7 +25,9 @@
 -- name), organizerGUID, slots ({ tank, healer, damage } or nil: no limit),
 -- minLevel, weekly, autoConfirm, locked (members cannot answer it),
 -- calendarID (or nil), changed
--- (Unix time), signUps }. A sign-up: { name, guid, class, level, status,
+-- (Unix time), signUps, madeInCalendar (made in the game's calendar by a
+-- member without the addon: it has only what the calendar keeps, and
+-- changed 0) }. A sign-up: { name, guid, class, level, status,
 -- role, note, time (Unix time of the answer), manage ("confirmed",
 -- "standby", "out", "tentative" or nil), auto (the event set manage by itself),
 -- external (brought in from outside the game), calendar (made in the
@@ -63,6 +65,7 @@ local function Copy(event, offset)
         slots = event.sl and { tank = event.sl.t, healer = event.sl.h, damage = event.sl.d } or nil,
         minLevel = event.ml or 0, weekly = event.wk == true, autoConfirm = event.ac == true, locked = event.lk == true,
         calendarID = event.ci ~= 0 and event.ci or nil, changed = event.at, signUps = signUps,
+        madeInCalendar = event.cal == true,
     }
 end
 

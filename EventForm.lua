@@ -28,6 +28,7 @@ local PLACE_ROWS = 8            -- rows the list shows at once
 local form
 local UpdatePlace
 local editing      -- the key of the event changed, or nil for a new one
+local madeThere    -- it was made in the game's calendar: only what the calendar keeps changes
 local chosen = { hour = DEFAULT_HOUR, minute = 0 }  -- { ty, ii (its place), day (days from today), hour, minute }
 local waiting      -- a token while a new event of the form's waits for the calendar's answer
 
@@ -413,7 +414,12 @@ local function Save()
             UpdateSave()
             return
         end
-        if not Events.Change(editing, fields) then
+        local event = Events.Get(editing)
+        if event and event.cal then
+            -- Made in the game's calendar: as the calendar has it, its
+            -- description in its list read there.
+            ns.CalendarLists.ReadSoon(event.ci)
+        elseif not Events.Change(editing, fields) then
             form.Error:SetText(L["The event could not be changed."])
             return
         end
@@ -598,7 +604,7 @@ end
 UpdatePlace = function()
     form:SetPortraitToAsset(UI.TYPE_ICONS[chosen.ty] or UI.TYPE_ICONS[Events.OTHER])
     local pvp = chosen.ty == Events.PVP
-    local any = #UI.PlacesFor(chosen.ty) > 0
+    local any = #UI.PlacesFor(chosen.ty) > 0 and not madeThere
     form.PlaceLabel:SetText(pvp and L["Battleground"] or L["Instance"])
     form.PlaceBox:SetEnabled(any)
     form.PlaceBox:SetAlpha(any and 1 or 0.5)
@@ -617,10 +623,15 @@ function EventForm.PickPlace(place)
 end
 
 local function UpdateLimit()
-    local on = form.Limit:GetChecked() == true
+    local on = form.Limit:GetChecked() == true and not madeThere
     for _, box in ipairs({ form.Tanks, form.Healers, form.Damage }) do
         box:SetEnabled(on)
         box:SetAlpha(on and 1 or 0.5)
+    end
+    -- What the game's calendar does not keep, off for an event made there.
+    for _, widget in ipairs({ form.Limit, form.MinLevel, form.Weekly, form.Auto }) do
+        widget:SetEnabled(not madeThere)
+        widget:SetAlpha(madeThere and 0.5 or 1)
     end
 end
 
@@ -742,6 +753,7 @@ function EventForm.Open(key)
     end
     local event = key and Events.Get(key)
     editing = event and event.key or nil
+    madeThere = event ~= nil and event.cal == true
     form.Error:SetText("")
     if event then
         form:SetTitle(L["Change event"])
@@ -760,7 +772,8 @@ function EventForm.Open(key)
         form.Auto:SetChecked(event.ac == true)
         form.Lock:SetChecked(event.lk == true)
         form.Save:SetText(L["Save"])
-        form.Hint:SetText(L["It goes to the game's calendar when you save it."])
+        form.Hint:SetText(madeThere and L["Made in the game's calendar: only what the calendar keeps changes."]
+            or L["It goes to the game's calendar when you save it."])
         -- Opened now, so the click that saves it changes the calendar too.
         ns.Calendar.Prepare(event.key, function()
             return form:IsShown() and editing == event.key

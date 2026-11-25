@@ -325,7 +325,9 @@ return function(H)
                     inviteStatus = MyStatus(event),
                     modStatus = event.creator == client.guid and "CREATOR"
                         or event.invites[client.guid] and event.invites[client.guid].modStatus or "",
-                    invitedBy = NameOf(world, event.creator), startTime = StartTime(event.start), inviteType = 1,
+                    -- world.noCreatorNames: the game gives no name of its creator.
+                    invitedBy = world.noCreatorNames and "" or NameOf(world, event.creator),
+                    startTime = StartTime(event.start), inviteType = 1,
                     isLocked = event.locked == true,
                 }
             end,

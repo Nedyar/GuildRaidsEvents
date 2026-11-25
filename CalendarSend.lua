@@ -285,10 +285,12 @@ end
 -- Why the form's Save is off for a change of that event, or nil: its
 -- calendar event is not open yet (the form opens it), or the game does not
 -- let the player change it. An event with no calendar event to change
--- changes in the addon only.
+-- changes in the addon only; one made in the calendar, never.
 function Calendar.EditBlocked(key)
     local event = Events.Get(key)
-    if not event or not InCalendar(event) then
+    if event and event.cal and not InCalendar(event) then
+        return L["Syncing the calendar..."]
+    elseif not event or not InCalendar(event) then
         return nil
     elseif Read.openKey ~= key or Read.OpenTitle() == nil or Read.ActionPending() then
         return L["Syncing the calendar..."]
@@ -347,15 +349,17 @@ end
 -- game's calendar deletes one: the calendar first. Its calendar event is
 -- deleted, and the event goes from the addon once the calendar no longer
 -- has it; if the game refuses it, nothing changes and the window says why.
--- An event not in the calendar goes from the addon at once. Whether it
--- went or was sent.
+-- An event not in the calendar goes from the addon at once; not one made
+-- in the calendar, which is only there. Whether it went or was sent.
 function Calendar.Delete(key)
     local event = Events.Get(key)
     if not event or Send.Item("remove", key) then
         return false
     end
     local entry = Read.Find(event.ci)
-    if event.ci == 0 or not entry then
+    if event.cal and not entry then
+        return false
+    elseif event.ci == 0 or not entry then
         return Organizer.Remove(key)
     end
     Organizer.ForgetTried(entry.id)

@@ -912,3 +912,196 @@ for _, client in ipairs(online) do
 end
 H.check(gone, "they take it back in the calendar: gone for everyone")
 Errors("sign-ups of members without the addon")
+
+H.section("Calendar: events made in the game's calendar without the addon")
+-- The maker plays without the addon (no client logged in yet).
+local maker = world:NewClient("Maker Name", { rank = "Member", rankIndex = 3 })
+world:RosterChanged()
+world:RunFor(5)
+local function WithCalendarID(client, id)
+    local list = {}
+    for _, one in pairs(client.ns.Events.All()) do
+        if one.ci == id then
+            list[#list + 1] = one
+        end
+    end
+    return list
+end
+local function MadeWithout(title, days)
+    return world:WindowCreate(maker, { title = title, at = ns.Events.Now() + days * 86400 - (ns.Events.Now() % 60),
+        type = 0, description = "Bring potions." })
+end
+local raidID = MadeWithout("Calendar raid", 5)
+world:RunFor(20)
+local made = WithCalendarID(member, raidID)
+H.check(#made == 1 and made[1].ti == "Calendar raid" and made[1].ty == 0 and made[1].owner == maker.guid and made[1].cal,
+    "a guild event made in the calendar by a member without the addon shows in the addon, theirs")
+local madeKey = made[1].key
+H.eq(madeKey, maker.guid .. "/C" .. raidID, "keyed by its creator and its calendar event ID")
+local sameEverywhere = true
+for _, client in ipairs(online) do
+    local theirs = WithCalendarID(client, raidID)
+    sameEverywhere = sameEverywhere and #theirs == 1 and theirs[1].key == madeKey
+end
+H.check(sameEverywhere, "every client has it once, under the same key: never twice")
+H.check(not ns.Rights.MayIManage(ns.Events.Get(madeKey)), "nobody with the addon manages it yet: its creator does, in the calendar")
+world:RunFor(150)
+H.eq(member.ns.Events.Get(madeKey).de, "Bring potions.", "its description comes with its list read there")
+
+H.check(member.ns.Events.Answer(madeKey, ns.Events.SIGNED, ns.Events.TANK, "on my warrior"), "a member signs up from the addon")
+second.ns.Events.Answer(madeKey, ns.Events.SIGNED, ns.Events.HEALER)
+world:RunFor(30)
+local madeInvites = world.calendar.events[raidID].invites
+H.check(madeInvites[member.guid] ~= nil and madeInvites[second.guid] ~= nil, "their sign-ups go to the calendar")
+local function SignUpIn(client, key, guid)
+    for _, signUp in ipairs(client.ns.Events.SignUps(client.ns.Events.Get(key))) do
+        if signUp.guid == guid then
+            return signUp
+        end
+    end
+end
+local seen = SignUpIn(organizer, madeKey, member.guid)
+H.check(seen ~= nil and seen.ro == ns.Events.TANK and seen.no == "on my warrior" and not seen.calendar,
+    "with their role and note, for everyone")
+world:RunFor(150)
+local makerLine = SignUpIn(member, madeKey, maker.guid)
+H.check(makerLine ~= nil and makerLine.calendar and makerLine.status == ns.Events.CONFIRMED,
+    "its creator shows as the calendar has them: confirmed")
+world:WindowStatus(raidID, member.guid, 3)
+world:RunFor(150)
+H.eq(SignUpIn(second, madeKey, member.guid).status, ns.Events.CONFIRMED,
+    "the creator confirms them in the game's window: confirmed for everyone")
+
+world:WindowModerator(raidID, second.guid, true)
+world:RunFor(150)
+local forSecond = second.ns.Events.Get(madeKey)
+H.check(second.ns.Rights.MayIManage(forSecond) and ns.Events.IsModerator(ns.Events.Get(madeKey), second.guid),
+    "named a moderator there, they moderate it in the addon too")
+H.check(not second.ns.Events.SetStatus(madeKey, member.guid, ns.Events.STANDBY), "no status of the addon's own in it")
+H.check(second.ns.Calendar.GiveThere(madeKey, member.guid, { status = 5 }), "the moderator gives a status from the addon")
+world:RunFor(5)
+H.eq(madeInvites[member.guid].status, 5, "in the calendar first")
+H.eq(SignUpIn(organizer, madeKey, member.guid).status, ns.Events.STANDBY,
+    "then for everyone at once, from its list read again there")
+H.check(second.ns.Calendar.GiveThere(madeKey, member.guid, { moderator = true }), "and names a moderator")
+world:RunFor(25)
+H.check(madeInvites[member.guid].modStatus == "MODERATOR" and member.ns.Rights.MayIManage(member.ns.Events.Get(madeKey)),
+    "in the calendar, and so in the addon")
+
+second.ns.EventForm.Open(madeKey)
+world:RunFor(5)
+local secondForm = second.ns.EventForm.Frame()
+H.check(not secondForm.Limit:IsEnabled() and not secondForm.Weekly:IsEnabled() and not secondForm.Auto:IsEnabled()
+    and not secondForm.MinLevel:IsEnabled() and not secondForm.PlaceBox:IsEnabled(),
+    "its form changes only what the calendar keeps")
+secondForm.TitleBox:SetText("Calendar raid (moved)")
+secondForm.Description.EditBox:SetText("Bring flasks.")
+H.Click(secondForm.Save)
+world:RunFor(30)
+H.eq(world.calendar.events[raidID].title, "Calendar raid (moved)", "the moderator's change goes to the calendar")
+H.check(member.ns.Events.Get(madeKey).ti == "Calendar raid (moved)" and member.ns.Events.Get(madeKey).de == "Bring flasks.",
+    "and so to everyone")
+local patched = false
+for _, client in ipairs(online) do
+    local own = client.ns.Data.GetOwnRecord(false)
+    patched = patched or (own and own.pe and own.pe[madeKey] ~= nil) or false
+end
+H.check(not patched, "with no record of anyone's holding it")
+Errors("made in the calendar without the addon")
+
+H.section("Calendar: its creator starts running the addon")
+world:Login(maker)
+world:RunFor(60)
+local makersOwn = maker.ns.Data.GetOwnRecord(false)
+local adoptedThere = false
+for _, base in ipairs(makersOwn and makersOwn.ev or {}) do
+    adoptedThere = adoptedThere or (base.id == "C" .. raidID and base.ci == raidID)
+end
+H.check(adoptedThere, "their client takes it into their record, under the same key")
+local once = true
+for _, client in ipairs(world.clients) do
+    if client.loggedIn then
+        local theirs = WithCalendarID(client, raidID)
+        once = once and #theirs == 1 and theirs[1].key == madeKey and not theirs[1].cal
+    end
+end
+H.check(once, "everyone has it once still, now the addon's")
+local kept = SignUpIn(organizer, madeKey, member.guid)
+H.check(kept ~= nil and kept.ro == ns.Events.TANK and kept.no == "on my warrior", "the sign-ups made meanwhile stay")
+local calendarCount = 0
+for _, one in pairs(world.calendar.events) do
+    if not one.deleted and one.title == "Calendar raid (moved)" then
+        calendarCount = calendarCount + 1
+    end
+end
+H.eq(calendarCount, 1, "and the calendar has no copy of it")
+world:RunFor(150)
+H.check(maker.ns.Rights.MayIManage(maker.ns.Events.Get(madeKey))
+    and ns.Events.IsModerator(ns.Events.Get(madeKey), second.guid), "its creator manages it; its moderators stay")
+Errors("its creator starts running the addon")
+
+H.section("Calendar: an event made in the calendar, deleted from the addon")
+world:Logout(maker)
+world:RunFor(10)
+local otherID = MadeWithout("Calendar dungeon", 6)
+world:RunFor(20)
+local otherKey = maker.guid .. "/C" .. otherID
+H.check(officer.ns.Events.Get(otherKey) ~= nil and officer.ns.Rights.MayIDelete(officer.ns.Events.Get(otherKey)),
+    "an officer may delete one, as the game's calendar lets them")
+H.check(officer.ns.Calendar.Delete(otherKey), "the officer deletes it")
+world:RunFor(15)
+H.check(world.calendar.events[otherID].deleted and officer.ns.Events.Get(otherKey) == nil, "the calendar first")
+world:RunFor(30)
+H.check(ns.Events.Get(otherKey) == nil and member.ns.Events.Get(otherKey) == nil, "then gone for everyone")
+Errors("deleted from the addon")
+
+H.section("Calendar: one made in the window by a member running the addon is never shown twice")
+local windowID = world:WindowCreate(organizer, { title = "Window raid", at = ns.Events.Now() + 8 * 86400 - (ns.Events.Now() % 60),
+    type = 0 })
+local everSeenTwice, everSeenMade = false, false
+for _ = 1, 120 do
+    world:RunFor(0.5)
+    for _, client in ipairs(online) do
+        local theirs = WithCalendarID(client, windowID)
+        everSeenTwice = everSeenTwice or #theirs > 1
+        for _, one in ipairs(theirs) do
+            everSeenMade = everSeenMade or one.cal == true
+        end
+    end
+end
+local windowEvent = WithCalendarID(member, windowID)[1]
+H.check(windowEvent ~= nil and windowEvent.key == organizer.guid .. "/C" .. windowID and not windowEvent.cal,
+    "its creator's client takes it in, under the key everyone would know it by")
+H.check(not everSeenTwice and not everSeenMade, "and meanwhile nobody showed it as made without the addon, nor twice")
+
+local formOnce = true
+for _, client in ipairs(online) do
+    formOnce = formOnce and #WithCalendarID(client, openEvent.ci) == 1
+end
+H.check(formOnce, "nor one made with the addon's form")
+Errors("made in the window by a member running the addon")
+
+H.section("Calendar: an event made without the addon, its creator's name not given")
+world.noCreatorNames = true
+local namelessID = MadeWithout("Nameless raid", 9)
+world:RunFor(150)
+local nameless = WithCalendarID(member, namelessID)[1]
+H.check(nameless ~= nil and nameless.owner == maker.guid and nameless.key == maker.guid .. "/C" .. namelessID,
+    "it shows all the same, once its list read there says who created it")
+world.noCreatorNames = nil
+Errors("its creator's name not given")
+
+H.section("Calendar: one made without the addon, gone from a calendar for a while")
+local hiddenID = MadeWithout("Hidden raid", 10)
+world:RunFor(150)
+local hiddenKey = maker.guid .. "/C" .. hiddenID
+world.calendar.hidden[officer.guid] = world.calendar.hidden[officer.guid] or {}
+world.calendar.hidden[officer.guid][hiddenID] = true
+world:RunFor(15)
+H.check(officer.ns.Events.Get(hiddenKey) ~= nil and officer.ns.Calendar.HiddenFromMe(officer.ns.Events.Get(hiddenKey)),
+    "gone from the officer's calendar for a while, it still shows: the guild's list has it")
+H.check(not officer.ns.Calendar.Delete(hiddenKey), "deleting it waits until it is back: it is only in the calendar")
+world:RunFor(30)
+H.check(member.ns.Events.Get(hiddenKey) ~= nil and not world.calendar.events[hiddenID].deleted, "so nobody stops showing it")
+world.calendar.hidden[officer.guid][hiddenID] = nil
+Errors("gone from a calendar for a while")

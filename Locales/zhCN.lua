@@ -45,6 +45,8 @@ ns.RegisterLocale("zhCN", function(L)
     L["Level %d"] = "等级 %d"
     L["Signed up outside the game."] = "在游戏外报名。"
     L["Signed up in the game's calendar, without the addon."] = "在游戏日历中报名，未使用插件。"
+    L["Made in the game's calendar, without the addon."] = "在游戏日历中创建，未使用插件。"
+    L["Made in the game's calendar: only what the calendar keeps changes."] = "在游戏日历中创建：只能修改日历保存的内容。"
     L["Right-click for its menu."] = "右键点击打开菜单。"
     L["Drag it to another column to change its role."] = "拖到另一列以更改其职责。"
     L["Role"] = "职责"

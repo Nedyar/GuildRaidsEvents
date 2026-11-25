@@ -32,7 +32,15 @@
 -- each member's client takes their own sign-up made there. For each field, the
 -- side that changed since both last agreed wins; when both did, the
 -- calendar. A locked event takes no answers: a member's answer waits until
--- it is unlocked.
+-- it is unlocked. Any member's client reads the events' lists of sign-ups,
+-- so those made there by members without the addon show too.
+--
+-- The guild events made in the calendar by members without the addon show
+-- too, as every client's calendar has them (Events.lua's MadeInCalendar):
+-- only what the calendar keeps, changed there only. Their moderators (and
+-- officers, to delete them) change them from the addon as from the
+-- game's window: in the calendar first, with no record of their own; their
+-- statuses and moderators come from the lists read there.
 --
 -- It works with the game's calendar window open, but opens nothing while
 -- the player makes, edits or views an event in that window, so as not to
@@ -132,6 +140,10 @@ function Calendar.Tick()
         return
     end
     Read.Scan()
+    if Read.MadeChanged() then
+        -- Events made in the calendar come, change or go.
+        Events.Changed()
+    end
     Organizer.Purge()
     Send.TakePending()
     Organizer.Link()

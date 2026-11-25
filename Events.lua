@@ -24,6 +24,12 @@
 --     not the addon's (without the addon, or with it off then) come from
 --     the newest list read there by anyone's client (cs,
 --     CalendarLists.lua).
+--   - A guild event made in the game's calendar that no record has (its
+--     creator without the addon) is its creator's all the same, as every
+--     client's calendar shows it (MadeInCalendar): its statuses and
+--     moderators come from its list read there, and it changes there only;
+--     what the addon adds to it (answers, roles, a deletion) travels in
+--     the records as for any other.
 --   - A sign-up's status (confirmed, standby, out) is the newest any of
 --     those who may manage the event gave. In an event that confirms by
 --     itself, those who signed up without a status are confirmed while
@@ -228,6 +234,60 @@ local function Moderators(event, guild)
     return moderators
 end
 
+-- The key of an event made in the game's calendar (see MadeInCalendar):
+-- its creator's GUID, "/", "C" and its calendar event ID. The ID of its
+-- creator's own event, once they take it into the addon, is the same.
+function Events.CalendarMadeID(calendarID)
+    return "C" .. calendarID
+end
+
+-- The moderators of an event made in the calendar: as its newest list read
+-- there says.
+local function ListModerators(list)
+    local moderators = {}
+    for guid, line in pairs(list and list.l or {}) do
+        if line.m then
+            moderators[guid] = true
+        end
+    end
+    return moderators
+end
+
+-- The guild events made in the game's calendar that no record has (made
+-- without the addon, or with it off), as this client's calendar shows them
+-- (CalendarRead.MadeThere), each its creator's: their GUID from the newest
+-- list read of it, or from their name. Every client keys it the same way
+-- (Events.CalendarMadeID), so two of them never bring it in twice, and its
+-- creator's client takes it in under the same key once they run the addon
+-- (CalendarOrganizer.lua's Adopt). Not those the player created (their
+-- own client takes them in), nor, a moment after it shows, one whose
+-- creator is online and runs the addon (their client is likely taking it
+-- in). Only what the calendar keeps: no places, level, place, weekly or
+-- confirming by itself.
+local function MadeInCalendar(events, guild)
+    local used = {}
+    for _, event in pairs(events) do
+        used[event.ci] = true
+    end
+    local made = ns.CalendarRead.MadeThere and ns.CalendarRead.MadeThere() or {}
+    for _, entry in ipairs(made) do
+        local list = lists[entry.ci]
+        local creator = list and list.cr or Events.FindMember(entry.invitedBy)
+        local member = creator and guild.members[creator]
+        local online = creator and ns.Roster.members[creator] and ns.Roster.members[creator].on
+        local waits = member ~= nil and ns.Data.IsShareable(member) and online and not entry.settled
+        if creator and not used[entry.ci] and creator ~= ns.playerGUID and not waits
+                and (not ns.Roster.ready or ns.Roster.members[creator]) then
+            local id = Events.CalendarMadeID(entry.ci)
+            local key = creator .. "/" .. id
+            events[key] = events[key] or {
+                key = key, id = id, owner = creator, by = creator, ci = entry.ci, ty = entry.ty, ti = entry.ti,
+                tm = entry.tm, lk = entry.lk or nil, de = list and list.de, ml = 0, at = 0, cal = true,
+            }
+        end
+    end
+end
+
 -- The events, and those deleted: { [key] = event } each.
 local function Build()
     local events, gone = {}, {}
@@ -250,8 +310,9 @@ local function Build()
             end
         end
     end
+    MadeInCalendar(events, guild)
     for _, event in pairs(events) do
-        event.md = Moderators(event, guild)
+        event.md = event.cal and ListModerators(lists[event.ci]) or Moderators(event, guild)
     end
     local removed = {}
     for guid, record in pairs(guild.members) do
@@ -261,7 +322,7 @@ local function Build()
                 if patch.x then
                     -- A deletion, by a moderator or an officer.
                     removed[key] = removed[key] or ns.Rights.MayDelete(guid, event)
-                elseif patch.at > event.at and ns.Rights.MayManage(guid, event) then
+                elseif not event.cal and patch.at > event.at and ns.Rights.MayManage(guid, event) then
                     for _, field in ipairs(FIELDS) do
                         event[field] = patch[field]
                     end
@@ -391,11 +452,24 @@ function Events.Answers(key)
 end
 
 -- The statuses given in an event: { [GUID] = { st, at, by } }, the newest
--- each, among those who may manage it.
+-- each, among those who may manage it. In one made in the game's calendar,
+-- those its newest list read there has (confirmed, standby or out; a
+-- tentative line is the member's answer): they are given there.
 function Events.Statuses(event)
     local statuses = {}
     local guild = ns.Data.CurrentGuild(false)
     if not guild then
+        return statuses
+    end
+    if event.cal then
+        local list = Events.CalendarList(event.ci)
+        for guid, line in pairs(list and list.l or {}) do
+            local state = ns.States.FromCalendar(line.s)
+            local st = state and ns.States.StatusOf(state)
+            if st and st ~= Events.NONE and st ~= Events.PROVISIONAL then
+                statuses[guid] = { st = st, at = list.at, by = event.owner }
+            end
+        end
         return statuses
     end
     for guid, record in pairs(guild.members) do
@@ -588,6 +662,15 @@ local function Fields(fields, at, deleting)
     return ns.Data.CleanFields(copy)
 end
 
+-- One of the player's own events in their record, and where.
+local function OwnBase(record, key)
+    for index, base in ipairs(record.ev or {}) do
+        if ns.playerGUID .. "/" .. base.id == key then
+            return base, index
+        end
+    end
+end
+
 -- The organizer of a new event is signed up and confirmed in it, as the
 -- game's calendar does with its creator, with their default role
 -- (Roles.lua); they may answer otherwise later.
@@ -628,18 +711,20 @@ local function MakeNext(record, base, at)
 end
 
 -- Creates an event organized by the player (a weekly one with next week's).
--- Returns its key, or nil and why ("invalid").
-function Events.Create(fields)
+-- id: its own ID, for one made in the game's calendar the player takes in
+-- (Events.CalendarMadeID); a new one if nil. Returns its key, or nil and
+-- why ("invalid").
+function Events.Create(fields, id)
     local record = Own()
     if not record then
         return nil, "invalid"
     end
     record.ev = record.ev or {}
     local event = Fields(fields, ns.Now())
-    if not event or #record.ev >= LIMITS.events then
+    if not event or #record.ev >= LIMITS.events or (id and OwnBase(record, ns.playerGUID .. "/" .. id)) then
         return nil, "invalid"
     end
-    event.id, event.ci = NewID(record), 0
+    event.id, event.ci = id or NewID(record), 0
     table.insert(record.ev, event)
     local key = ns.playerGUID .. "/" .. event.id
     SignUpOrganizer(record, key, event.at)
@@ -650,23 +735,16 @@ function Events.Create(fields)
     return key
 end
 
-local function OwnBase(record, key)
-    for index, base in ipairs(record.ev or {}) do
-        if ns.playerGUID .. "/" .. base.id == key then
-            return base, index
-        end
-    end
-end
-
 -- Changes an event the player may manage: fields as for Events.Create
 -- (deleting: a moderator or an officer deletes it). Its organizer changes
 -- it in their record, anyone else in their own (pe). Returns whether it
--- could.
+-- could. One made in the game's calendar changes there only (its deletion
+-- is kept, so that everyone stops showing it at once).
 local function Change(key, fields, deleting)
     local event = Events.Get(key)
     local record = Own()
     local may = deleting and ns.Rights.MayIDelete or ns.Rights.MayIManage
-    if not event or not record or not may(event) then
+    if not event or not record or not may(event) or (event.cal and not deleting) then
         return false
     end
     local changed = Fields(fields, NextChange(event.at), deleting)
@@ -787,11 +865,12 @@ function Events.SetNote(key, note)
 end
 
 -- Gives a sign-up a status (Events.NONE takes it back), as someone who may
--- manage the event (its organizer's too, as in the game's calendar).
+-- manage the event (its organizer's too, as in the game's calendar). Not in
+-- one made in the game's calendar: given there (Calendar.GiveThere).
 function Events.SetStatus(key, guid, st)
     local event = Events.Get(key)
     local record = Own()
-    if not event or not record or not ns.Rights.MayIManage(event) then
+    if not event or not record or event.cal or not ns.Rights.MayIManage(event) then
         return false
     end
     if not HasRoom(record.ms, key, LIMITS.statusEvents) or not HasRoom(record.ms and record.ms[key], guid, LIMITS.perEvent) then
@@ -806,11 +885,12 @@ function Events.SetStatus(key, guid, st)
 end
 
 -- Names a moderator of the event (on true) or takes it back, as its
--- organizer or one of its moderators; never its organizer.
+-- organizer or one of its moderators; never its organizer. Not in one made
+-- in the game's calendar: named there (Calendar.GiveThere).
 function Events.SetModerator(key, guid, on)
     local event = Events.Get(key)
     local record = Own()
-    if not event or not record or not guid or guid == event.owner or not ns.Rights.MayIManage(event) then
+    if not event or not record or not guid or guid == event.owner or event.cal or not ns.Rights.MayIManage(event) then
         return false
     end
     if not HasRoom(record.mo, key, LIMITS.statusEvents) or not HasRoom(record.mo and record.mo[key], guid, LIMITS.perEvent) then
@@ -1005,18 +1085,21 @@ function Events.Tidy()
     end
 end
 
+-- The guild's data, the roster or the calendar's guild events changed: the
+-- events are worked out again, and the window told a moment later.
+function Events.Changed()
+    Events.Invalidate()
+    ns.Debounce("EventsChanged", 0.2, function()
+        ns.Fire("EventsChanged")
+    end)
+end
+
 function Events.Init()
-    local function Changed()
-        Events.Invalidate()
-        ns.Debounce("EventsChanged", 0.2, function()
-            ns.Fire("EventsChanged")
-        end)
-    end
-    ns.On("DataChanged", Changed)
+    ns.On("DataChanged", Events.Changed)
     ns.On("RosterUpdated", function()
         -- Ranks' permissions may have changed too.
         ns.Rights.ForgetRanks()
-        Changed()
+        Events.Changed()
     end)
     C_Timer.After(30, Events.Tidy)
     C_Timer.NewTicker(600, Events.Tidy)

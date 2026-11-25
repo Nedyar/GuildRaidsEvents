@@ -841,6 +841,62 @@ H.check(not view.SignUp:IsEnabled() and view.SignUp.reason == "This event is ove
 member.ns.EventView.Close()
 Errors("an event that ends")
 
+H.section("UI: an event made in the game's calendar without the addon")
+local _, maker = world:AddMember("Maker Name", nil, { rank = "Member", rankIndex = 3 })
+world:RosterChanged()
+world:RunFor(5)
+local madeID = world:WindowCreate({ guid = maker }, { title = "Calendar night", type = 3,
+    at = ns.Events.Now() + 3 * 86400 - (ns.Events.Now() % 60) })
+world:RunFor(150)
+local madeKey = maker .. "/C" .. madeID
+member.ns.EventView.Open(madeKey)
+H.check(view:IsShown() and view.Title:GetText() == "Calendar night", "it shows in the addon, its view too")
+H.eq(view.Details:GetText(), "Made in the game's calendar, without the addon.", "saying where it was made")
+H.check(not view.Edit:IsShown() and not view.Delete:IsShown(), "a member does not manage it")
+H.check(view.SignUp:IsShown() and view.SignUp:IsEnabled(), "and signs up as in any other")
+local makerName
+for role = 1, 3 do
+    for _, button in ipairs(Names(view, role)) do
+        if button.signUp and button.signUp.guid == maker then
+            makerName = button
+        end
+    end
+end
+H.check(makerName ~= nil, "its creator shows, as the calendar keeps them in it")
+makerName:GetScript("OnEnter")(makerName)
+H.check(HasLine(member.env.GameTooltip._lines, "Signed up in the game's calendar, without the addon."),
+    "marked as signed up in the calendar, without the addon")
+ns.EventView.Open(madeKey)
+H.check(orgView.Delete:IsShown() and not orgView.Edit:IsShown(), "an officer may delete it, not change it, as in the game")
+ns.EventView.Close()
+H.Click(view.SignUp)
+world:RunFor(30)
+world:WindowModerator(madeID, member.guid, true)
+world:RunFor(150)
+member.ns.EventView.Refresh()
+H.check(view.Edit:IsShown(), "named a moderator in the calendar, the member changes it from the addon")
+for role = 1, 3 do
+    for _, button in ipairs(Names(view, role)) do
+        if button.signUp and button.signUp.guid == maker then
+            makerName = button
+        end
+    end
+end
+member.contextMenu = nil
+H.Click(makerName, "RightButton")
+H.MenuEntry(member.contextMenu, "Standby").setSelected()
+world:RunFor(5)
+H.eq(world.calendar.events[madeID].invites[maker].status, 5, "their name's menu gives statuses in the calendar")
+local makerStatus
+for _, signUp in ipairs(member.ns.Events.SignUps(member.ns.Events.Get(madeKey))) do
+    if signUp.guid == maker then
+        makerStatus = signUp.status
+    end
+end
+H.eq(makerStatus, member.ns.Events.STANDBY, "and the addon shows it at once")
+member.ns.EventView.Close()
+Errors("an event made in the calendar")
+
 H.section("UI: closing")
 communities:SetDisplayMode("ROSTER")
 H.check(not page:IsShown() and not tab:GetChecked(), "one of Blizzard's tabs closes the panel")

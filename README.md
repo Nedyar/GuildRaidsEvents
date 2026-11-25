@@ -95,6 +95,22 @@ linked to the game's calendar.
   in the addon. Your own answer, and the confirmations of the events you
   organize, reach the calendar by themselves. When both sides changed the
   same thing, the calendar's wins.
+- **Members without the addon**: their sign-ups made in the game's calendar
+  show in the event too, marked as such, as damage until the organizer or a
+  moderator gives them a role, and count like any other. Any member's addon
+  reads the events' lists in the calendar and shares them: one addon online
+  reads each event every two minutes, the others now and then in case it
+  does not, and a list goes to the guild only when it changed.
+- **Events made without the addon**: a guild event someone creates in the
+  game's calendar without the addon shows in everyone's list, as its
+  creator's, with only what the calendar keeps (no places, level, place,
+  weekly or confirming by itself; its view says where it was made). Every
+  addon knows it by its creator and its calendar event, so it never shows
+  twice; if its creator starts using the addon, theirs takes it in as it
+  is, with the sign-ups made meanwhile. Members sign up to it from the
+  addon with their role and note; its moderators change it, give statuses
+  and name moderators from the addon, in the calendar first, and officers
+  may delete it, as the game's calendar lets them.
 - **Weekly events**: an event that repeats every week comes with next week's
   at once, and the one after is made each time one starts, so there are
   always two to come. Each goes to the calendar with its **Create in

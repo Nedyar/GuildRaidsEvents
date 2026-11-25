@@ -4,7 +4,10 @@
 -- and give each sign-up the addon's status and moderation, and take into
 -- the addon a status or a moderator given in the game's calendar window.
 -- The organizer's line too (the game keeps an event's creator in it, and
--- lets its moderators give it a status).
+-- lets its moderators give it a status). In an event made in the game's
+-- calendar (no record of anyone's has it), what its creator's or a
+-- moderator's client gives goes there only (Calendar.GiveThere), and comes
+-- back with its list read there (CalendarLists.lua).
 local _, ns = ...
 
 local Calendar, Read, Organizer, Statuses, Lists =
@@ -16,6 +19,9 @@ local Plain = Read.Plain
 local MIRROR_EVERY = 120     -- seconds between two looks at one event's sign-ups
 
 local mirrored = {}          -- [key] = { at = GetTime(), signature } of the last look at its sign-ups
+-- What the player gave in events made in the calendar, to give there
+-- (Calendar.GiveThere): [key] = { [guid] = { status } or { moderator } }.
+local there = {}
 
 -- The calendar status each sign-up of the event should have: [guid] =
 -- status; the organizer's line too. And the organizer's sign-up, or nil
@@ -181,7 +187,11 @@ local function EventToMirror(now)
     local again = not Read.WindowShown()
     for key, event in pairs(Events.All()) do
         local entry = Read.Find(event.ci)
-        if entry and ns.Rights.MayIManage(event) and event.tm > Events.Now() then
+        if entry and event.cal and there[key] then
+            -- What the player gave in one made in the calendar goes there
+            -- first of all.
+            return { key = key, event = event, entry = entry, there = there[key] }
+        elseif entry and not event.cal and ns.Rights.MayIManage(event) and event.tm > Events.Now() then
             local last = mirrored[key]
             local signature = StatusSignature(event)
             if not last or last.signature ~= signature or (again and now - last.at > MIRROR_EVERY) then
@@ -194,42 +204,77 @@ local function EventToMirror(now)
     return best
 end
 
+-- What the player gave in an event made in the calendar, as changes to
+-- make there: { guid, status } or { guid, moderator = true or false }.
+local function ThereChanges(item)
+    there[item.key] = nil
+    local changes = {}
+    for guid, change in pairs(item.there) do
+        if change.moderator ~= nil then
+            changes[#changes + 1] = { guid = guid, moderator = change.moderator }
+        end
+        if change.status then
+            changes[#changes + 1] = { guid = guid, status = change.status }
+        end
+    end
+    return changes
+end
+
 -- Opens the event, takes in what was given in the calendar, and gives each
--- sign-up the addon's status and moderation, one at a time.
+-- sign-up the addon's status and moderation, one at a time. In one made in
+-- the calendar, gives what the player gave in it, then reads its list
+-- again (that is where its statuses come from).
 local function Mirror(item)
     Read.openKey = nil
     Read.busy = true
-    mirrored[item.key] = { at = GetTime(), signature = item.signature }
+    if not item.there then
+        mirrored[item.key] = { at = GetTime(), signature = item.signature }
+    end
     Read.Open(item.entry, function(ok)
         if not ok then
             Read.Close()
             Read.Finish()
             return
         end
-        Organizer.ReconcileOpen(item.key)
-        -- Its list read too: sign-ups made in the calendar come in first.
-        Lists.Take(Events.Get(item.key) or item.event)
-        local changes = StatusChanges(item.key, Events.Get(item.key) or item.event)
+        local changes
+        if item.there then
+            changes = ThereChanges(item)
+        else
+            Organizer.ReconcileOpen(item.key)
+            -- Its list read too: sign-ups made in the calendar come in first.
+            Lists.Take(Events.Get(item.key) or item.event)
+            changes = StatusChanges(item.key, Events.Get(item.key) or item.event)
+        end
         local step = 0
         local function NextChange()
             step = step + 1
             local change = changes[step]
             local index = change and InviteIndex(change.guid)
             if not change then
+                if item.there then
+                    Lists.Take(Events.Get(item.key) or item.event, true)
+                end
                 Read.Close()
                 Read.Finish()
                 return
             end
+            -- (What was agreed with the calendar, for those made in the
+            -- addon only.)
+            local agreed = not item.there and Read.State(change.moderator ~= nil and "moderators" or "statuses")[item.key]
             if index and change.moderator ~= nil then
                 if change.moderator then
                     C_Calendar.EventSetModerator(index)
                 else
                     C_Calendar.EventClearModerator(index)
                 end
-                Read.State("moderators")[item.key][change.guid] = change.moderator
+                if agreed then
+                    agreed[change.guid] = change.moderator
+                end
             elseif index then
                 C_Calendar.EventSetInviteStatus(index, change.status)
-                Read.State("statuses")[item.key][change.guid] = change.status
+                if agreed then
+                    agreed[change.guid] = change.status
+                end
             end
             Read.WaitDone(function()
                 C_Timer.After(0.5, NextChange)
@@ -266,13 +311,41 @@ function Statuses.ReadOpen()
     for key, event in pairs(Events.All()) do
         if event.ci ~= 0 and event.tm == start and event.ti == title then
             Lists.Take(event)
-            if ns.Rights.MayIManage(event) then
+            if not event.cal and ns.Rights.MayIManage(event) then
                 Organizer.ReconcileOpen(key)
                 StatusChanges(key, Events.Get(key) or event)
             end
             return
         end
     end
+end
+
+-- The player gives a status (calendar status) or takes a moderator
+-- (moderator true or false) in an event made in the game's calendar, as
+-- its creator or one of its moderators: given there first, with no click;
+-- it shows once the list read there afterwards has it. Whether it goes.
+function Calendar.GiveThere(key, guid, change)
+    local event = Events.Get(key)
+    if not event or not event.cal or not guid or not ns.Rights.MayIManage(event)
+            or (change.moderator ~= nil and guid == event.owner) then
+        return false
+    end
+    there[key] = there[key] or {}
+    local waiting = there[key][guid] or {}
+    if change.status then
+        waiting.status = change.status
+    end
+    if change.moderator ~= nil then
+        waiting.moderator = change.moderator
+    end
+    there[key][guid] = waiting
+    Calendar.TickSoon()
+    return true
+end
+
+-- Whether something the player gave in that event waits to go there.
+function Calendar.GivingThere(key)
+    return there[key] ~= nil
 end
 
 -- Its sign-ups are looked at again (its calendar event is new, or it was

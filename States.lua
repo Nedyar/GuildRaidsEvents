@@ -124,6 +124,12 @@ local function CalendarStatus(state)
     return name and Enum.CalendarStatus[name]
 end
 
+-- The calendar status a status given (Events.CONFIRMED, STANDBY, OUT,
+-- PROVISIONAL) stands for, or nil.
+function States.CalendarStatusFor(status)
+    return CalendarStatus(OF_STATUS[status])
+end
+
 -- The state a status of the game's calendar stands for: "signed",
 -- "tentative", "confirmed", "standby" or "out"; nil for any other (not
 -- signed up, invited, declined...).

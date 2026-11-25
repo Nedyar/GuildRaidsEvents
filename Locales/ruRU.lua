@@ -45,6 +45,8 @@ ns.RegisterLocale("ruRU", function(L)
     L["Level %d"] = "Уровень %d"
     L["Signed up outside the game."] = "Записан вне игры."
     L["Signed up in the game's calendar, without the addon."] = "Записался в календаре игры, без аддона."
+    L["Made in the game's calendar, without the addon."] = "Создано в календаре игры, без аддона."
+    L["Made in the game's calendar: only what the calendar keeps changes."] = "Создано в календаре игры: меняется только то, что хранит календарь."
     L["Right-click for its menu."] = "Правый щелчок открывает меню."
     L["Drag it to another column to change its role."] = "Перетащите в другой столбец, чтобы сменить роль."
     L["Role"] = "Роль"

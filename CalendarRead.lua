@@ -14,6 +14,9 @@ local LOUD_AFTER = 1         -- seconds after our last open before the game's wi
 
 -- What the calendar holds: [event ID] = { id, offset, day, index, ev }.
 local found = {}
+local firstSeen = {}         -- [event ID] = GetTime() this client first saw it, this session
+local SETTLE = 30            -- seconds a new calendar event takes to come in with its creator's record
+local madeSignature          -- what MadeThere gave at the last look, as one text
 Read.scanned = false         -- the calendar's data came since we asked for it
 Read.reads = 0               -- how many times the calendar's data came
 Read.busy = false            -- a step with an open event goes on
@@ -166,17 +169,75 @@ function Calendar.StillSignedThere(event)
 end
 
 -- The calendar IDs our events are linked to (those deleted too, until
--- their organizer's record lets them go).
+-- their organizer's record lets them go); not those made in the calendar,
+-- which no record has.
 function Read.UsedIDs()
     local used = {}
     for _, list in ipairs({ Events.All(), Events.Deleted() }) do
         for _, event in pairs(list) do
-            if event.ci ~= 0 then
+            if event.ci ~= 0 and not event.cal then
                 used[event.ci] = true
             end
         end
     end
     return used
+end
+
+-- The guild events in the player's calendar (and in the guild's list,
+-- those gone from it for a while), for Events.lua to take in those no
+-- record has: { { ci, ti, tm, ty, lk, invitedBy (their creator's name, or
+-- nil), settled (seen for a while) } }. Not those the player created:
+-- their own client takes them in (CalendarOrganizer.lua's Adopt).
+function Read.MadeThere()
+    local made = {}
+    if not Read.scanned then
+        return made
+    end
+    local now = GetTime()
+    local function Add(id, fields)
+        firstSeen[id] = firstSeen[id] or now
+        fields.ci, fields.settled = id, now - firstSeen[id] >= SETTLE
+        made[#made + 1] = fields
+    end
+    for id, entry in pairs(found) do
+        local ev = entry.ev
+        local start = Read.StartOf(ev.startTime)
+        local title = Plain(ev.title)
+        if Plain(ev.modStatus) ~= "CREATOR" and start and type(title) == "string" then
+            local invitedBy = Plain(ev.invitedBy)
+            Add(id, { ti = title, tm = start, ty = Read.TypeOf(Plain(ev.eventType)), lk = Read.IsLocked(ev),
+                invitedBy = type(invitedBy) == "string" and invitedBy ~= "" and invitedBy or nil })
+        end
+    end
+    for i = 1, Plain(ns.Try(C_Calendar.GetNumGuildEvents)) or 0 do
+        local info = ns.Try(C_Calendar.GetGuildEventInfo, i)
+        local id = ns.CanRead(info) and Plain(info.eventID)
+        local title = id and Plain(info.title)
+        if type(id) == "number" and id ~= 0 and not found[id] and type(title) == "string"
+                and (Plain(info.calendarType) == nil or Plain(info.calendarType) == "GUILD_EVENT") then
+            local year, month, day = Plain(info.year), Plain(info.month), Plain(info.monthDay)
+            if type(year) == "number" and type(month) == "number" and type(day) == "number" then
+                Add(id, { ti = title, tm = Events.Naive(year, month, day, Plain(info.hour) or 0, Plain(info.minute) or 0),
+                    ty = Read.TypeOf(Plain(info.eventType)) })
+            end
+        end
+    end
+    return made
+end
+
+-- Whether what MadeThere gives changed since the last look (the events are
+-- then worked out again, Events.Changed).
+function Read.MadeChanged()
+    local parts = {}
+    for _, entry in ipairs(Read.MadeThere()) do
+        parts[#parts + 1] = table.concat({ entry.ci, entry.ti, entry.tm, entry.ty, tostring(entry.lk),
+            tostring(entry.invitedBy), tostring(entry.settled) }, "|")
+    end
+    table.sort(parts)
+    local signature = table.concat(parts, "\n")
+    local changed = signature ~= madeSignature
+    madeSignature = signature
+    return changed
 end
 
 -- The calendar events this character created, linked to none of ours
